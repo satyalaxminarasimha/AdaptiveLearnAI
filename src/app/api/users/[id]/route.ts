@@ -1,0 +1,112 @@
+import { NextRequest, NextResponse } from 'next/server';
+import dbConnect from '@/lib/mongodb';
+import User from '@/models/User';
+import { requireAuth } from '@/lib/auth';
+import { Types } from 'mongoose';
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    requireAuth(request, ['admin']);
+
+    await dbConnect();
+
+    const { id } = await params;
+
+    const user = await User.findById(id).select('-password');
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json(user);
+  } catch (error) {
+    console.error('Get user error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    requireAuth(request, ['admin']);
+
+    await dbConnect();
+
+    const { id } = await params;
+    const body = await request.json();
+    const { isApproved, role } = body;
+
+    // Build update object
+    const updateData: any = {};
+    if (isApproved !== undefined) updateData.isApproved = isApproved;
+    if (role !== undefined) updateData.role = role;
+
+    const user = await User.findByIdAndUpdate(
+      new Types.ObjectId(id),
+      updateData,
+      { new: true }
+    ).select('-password');
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      user: user,
+    });
+  } catch (error) {
+    console.error('Update user error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    requireAuth(request, ['admin']);
+
+    await dbConnect();
+
+    const { id } = await params;
+
+    const result = await User.findByIdAndDelete(new Types.ObjectId(id));
+
+    if (!result) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'User deleted successfully',
+    });
+  } catch (error) {
+    console.error('Delete user error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}

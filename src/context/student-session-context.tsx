@@ -1,7 +1,8 @@
 
 'use client';
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, ReactNode } from 'react';
+import { useAuth } from './auth-context';
 
 export type StudentSession = {
   section: string | null;
@@ -15,22 +16,12 @@ type SessionContextType = {
 const StudentSessionContext = createContext<SessionContextType | undefined>(undefined);
 
 export function StudentSessionProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<StudentSession | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const { user, isLoading } = useAuth();
 
-  useEffect(() => {
-    try {
-      const section = window.localStorage.getItem('studentSection');
-      if (section) {
-        setSession({ section });
-      }
-    } catch (error) {
-      console.error("Failed to parse student session from localStorage", error);
-      setSession(null);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  // Get section from authenticated user's profile
+  const session: StudentSession | null = user?.section 
+    ? { section: user.section } 
+    : null;
 
   return (
     <StudentSessionContext.Provider value={{ session, isLoading }}>

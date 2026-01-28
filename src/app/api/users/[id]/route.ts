@@ -45,12 +45,18 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await request.json();
-    const { isApproved, role } = body;
+    const { isApproved, role, name, email, rollNo, batch, section, expertise } = body;
 
-    // Build update object
+    // Build update object - allow updating more fields
     const updateData: any = {};
     if (isApproved !== undefined) updateData.isApproved = isApproved;
     if (role !== undefined) updateData.role = role;
+    if (name !== undefined) updateData.name = name;
+    if (email !== undefined) updateData.email = email;
+    if (rollNo !== undefined) updateData.rollNo = rollNo;
+    if (batch !== undefined) updateData.batch = batch;
+    if (section !== undefined) updateData.section = section;
+    if (expertise !== undefined) updateData.expertise = expertise;
 
     const user = await User.findByIdAndUpdate(
       new Types.ObjectId(id),

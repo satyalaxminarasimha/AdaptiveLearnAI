@@ -1,11 +1,20 @@
 import { useState, useEffect } from 'react';
 import { apiRequest } from '@/lib/api';
 
+interface RecentActivity {
+  id: string;
+  description: string;
+  time: string;
+  status: 'pending' | 'approved' | 'rejected';
+  type: string;
+}
+
 interface AdminStats {
   totalUsers: number;
   totalProfessors: number;
   totalStudents: number;
   admissionRequests: number;
+  recentActivity: RecentActivity[];
 }
 
 export function useAdminStats() {
@@ -19,6 +28,7 @@ export function useAdminStats() {
 
   const fetchStats = async () => {
     try {
+      setIsLoading(true);
       const response = await apiRequest('/api/admin/stats');
       if (response.ok) {
         const data = await response.json();

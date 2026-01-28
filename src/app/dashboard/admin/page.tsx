@@ -2,11 +2,12 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Users, UserPlus, Activity, GraduationCap, UserSquare } from 'lucide-react';
+import { Users, UserPlus, Activity, GraduationCap, UserSquare, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { adminStats, recentActivity } from '@/lib/mock-data';
+import { adminStats } from '@/lib/mock-data';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAdminStats } from '@/hooks/use-admin-stats';
+import { Button } from '@/components/ui/button';
 
 const iconMap: { [key: string]: React.ElementType } = {
     Users: Users,
@@ -16,7 +17,7 @@ const iconMap: { [key: string]: React.ElementType } = {
 };
 
 export default function AdminDashboardPage() {
-  const { stats, isLoading } = useAdminStats();
+  const { stats, isLoading, refetch } = useAdminStats();
 
   const displayStats = stats ? [
     { title: 'Total Users', value: stats.totalUsers, icon: 'Users' },
@@ -56,9 +57,21 @@ export default function AdminDashboardPage() {
       <section className="space-y-6">
         <Card>
           <CardHeader>
-             <div className="flex items-center gap-2">
-               <Activity className="h-5 w-5" />
-               <CardTitle>Recent Activity</CardTitle>
+             <div className="flex items-center justify-between">
+               <div className="flex items-center gap-2">
+                 <Activity className="h-5 w-5" />
+                 <CardTitle>Recent Activity</CardTitle>
+               </div>
+               <Button 
+                 variant="outline" 
+                 size="sm" 
+                 onClick={refetch}
+                 disabled={isLoading}
+                 className="flex items-center gap-2"
+               >
+                 <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
+                 Refresh
+               </Button>
              </div>
           </CardHeader>
           <CardContent>
@@ -71,26 +84,43 @@ export default function AdminDashboardPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {recentActivity.map((activity) => (
-                  <TableRow key={activity.id}>
-                    <TableCell>{activity.description}</TableCell>
-                    <TableCell>{activity.time}</TableCell>
-                    <TableCell>
-                      <span
-                        className={cn(
-                          'inline-flex items-center rounded-full px-2 py-1 text-xs font-medium',
-                          activity.status === 'pending'
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : activity.status === 'approved'
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-red-100 text-red-800'
-                        )}
-                      >
-                        {activity.status}
-                      </span>
+                {isLoading ? (
+                  // Loading skeleton
+                  Array.from({ length: 5 }).map((_, index) => (
+                    <TableRow key={`skeleton-${index}`}>
+                      <TableCell><Skeleton className="h-4 w-[300px]" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-[100px]" /></TableCell>
+                      <TableCell><Skeleton className="h-6 w-[80px]" /></TableCell>
+                    </TableRow>
+                  ))
+                ) : stats?.recentActivity && stats.recentActivity.length > 0 ? (
+                  stats.recentActivity.map((activity) => (
+                    <TableRow key={activity.id}>
+                      <TableCell>{activity.description}</TableCell>
+                      <TableCell>{activity.time}</TableCell>
+                      <TableCell>
+                        <span
+                          className={cn(
+                            'inline-flex items-center rounded-full px-2 py-1 text-xs font-medium',
+                            activity.status === 'pending'
+                              ? 'bg-yellow-100 text-yellow-800'
+                              : activity.status === 'approved'
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-red-100 text-red-800'
+                          )}
+                        >
+                          {activity.status}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={3} className="text-center text-muted-foreground">
+                      No recent activity found.
                     </TableCell>
                   </TableRow>
-                ))}
+                )}
               </TableBody>
             </Table>
           </CardContent>

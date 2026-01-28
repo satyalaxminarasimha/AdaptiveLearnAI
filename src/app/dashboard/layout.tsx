@@ -49,6 +49,12 @@ const AdminNav = () => (
       </SidebarMenuButton>
     </SidebarMenuItem>
     <SidebarMenuItem>
+      <SidebarMenuButton href="/dashboard/admin/manage-users" tooltip="Manage Users">
+        <Users />
+        Manage Users
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+    <SidebarMenuItem>
       <SidebarMenuButton href="/dashboard/admin/admission-requests" tooltip="Requests">
         <UserPlus />
         Requests

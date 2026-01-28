@@ -63,7 +63,6 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [selectedClassIndex, setSelectedClassIndex] = useState('');
-  const [selectedSection, setSelectedSection] = useState('');
 
   const router = useRouter();
   const { toast } = useToast();
@@ -142,15 +141,6 @@ export default function LoginPage() {
     }
 
     if (selectedRole === 'Student') {
-      if (!selectedSection) {
-        toast({
-          variant: 'destructive',
-          title: 'Section not selected',
-          description: 'Please select your section to proceed.',
-        });
-        return;
-      }
-
       const studentEmailValidation = /^[a-zA-Z0-9_.-]+\.(\d{2})\.csm@anits\.edu\.in$/;
       const rollNoValidation = /^A(\d{2})\d{9}$/;
 
@@ -188,7 +178,6 @@ export default function LoginPage() {
 
       const result = await login(email, password);
       if (result.success) {
-        localStorage.setItem('studentSection', selectedSection);
         router.push('/dashboard/student');
       } else {
         toast({
@@ -292,22 +281,6 @@ export default function LoginPage() {
                       </div>
                     )}
                     
-                    {selectedRole === 'Student' && (
-                       <div className="space-y-2">
-                        <Label htmlFor="section">Section</Label>
-                        <Select value={selectedSection} onValueChange={setSelectedSection}>
-                          <SelectTrigger id="section">
-                            <SelectValue placeholder="Select your section" />
-                          </SelectTrigger>
-                          <SelectContent>
-                              <SelectItem value="A">Section A</SelectItem>
-                              <SelectItem value="B">Section B</SelectItem>
-                              <SelectItem value="C">Section C</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
-
                     <div className="pt-2">
                       <Button type="submit" className="w-full bg-primary hover:bg-primary/90">
                           Sign In

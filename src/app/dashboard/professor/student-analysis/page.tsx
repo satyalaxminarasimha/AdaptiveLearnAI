@@ -36,7 +36,7 @@ import {
   quizzesBySubject,
   allQuizPerformances,
 } from '@/lib/mock-data';
-import { Users } from 'lucide-react';
+import { Users, BarChart3, PieChart as PieChartIcon, UserCircle, TrendingUp, TrendingDown } from 'lucide-react';
 import { useProfessorSession } from '@/context/professor-session-context';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -93,12 +93,14 @@ export default function StudentAnalysisPage() {
 
   if (isLoading) {
       return (
-          <main className="flex-1 space-y-6 p-4 md:p-6">
-              <Skeleton className="h-8 w-64 mb-2" />
-              <Skeleton className="h-5 w-96" />
-              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 mt-6">
-                  <Card><CardHeader><Skeleton className="h-6 w-48" /></CardHeader><CardContent><Skeleton className="h-80 w-full" /></CardContent></Card>
-                  <Card><CardHeader><Skeleton className="h-6 w-48" /></CardHeader><CardContent><Skeleton className="h-80 w-full" /></CardContent></Card>
+          <main className="flex-1 space-y-6 p-4 md:p-6 animate-fade-in">
+              <div className="space-y-2">
+                <Skeleton className="h-8 w-64 mb-2" />
+                <Skeleton className="h-5 w-96" />
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2 mt-6">
+                  <Card><CardHeader><Skeleton className="h-6 w-48" /></CardHeader><CardContent><Skeleton className="h-56 sm:h-72 md:h-80 w-full" /></CardContent></Card>
+                  <Card><CardHeader><Skeleton className="h-6 w-48" /></CardHeader><CardContent><Skeleton className="h-56 sm:h-72 md:h-80 w-full" /></CardContent></Card>
               </div>
               <Card className="mt-6">
                   <CardHeader><Skeleton className="h-8 w-1/2" /></CardHeader>
@@ -109,10 +111,15 @@ export default function StudentAnalysisPage() {
   }
   
   return (
-    <main className="flex-1 space-y-6 p-4 md:p-6">
+    <main className="flex-1 space-y-6 p-4 md:p-6 animate-fade-in">
       <div className="space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">Student Analysis</h1>
-        <p className="text-muted-foreground">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-primary/10">
+            <BarChart3 className="h-6 w-6 text-primary" />
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Student Analysis</h1>
+        </div>
+        <p className="text-sm sm:text-base text-muted-foreground">
           Analyze student performance for{' '}
           <span className="font-semibold text-primary">
             {selectedClass ? `${selectedClass.subject} (${selectedClass.batch} - ${selectedClass.section})` : 'your classes'}
@@ -120,18 +127,21 @@ export default function StudentAnalysisPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Quizzes Conducted</CardTitle>
-            <CardDescription>Number of quizzes conducted per month.</CardDescription>
+      <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">
+        <Card className="transition-all duration-300 hover:shadow-lg animate-fade-in" style={{ animationDelay: '100ms' }}>
+          <CardHeader className="pb-2 sm:pb-4">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-green-500" />
+              <CardTitle className="text-lg sm:text-xl">Quizzes Conducted</CardTitle>
+            </div>
+            <CardDescription className="text-xs sm:text-sm">Number of quizzes conducted per month.</CardDescription>
           </CardHeader>
-          <CardContent className="pl-2">
-            <ChartContainer config={quizzesConductedChartConfig} className="h-80 w-full">
+          <CardContent className="pl-0 sm:pl-2">
+            <ChartContainer config={quizzesConductedChartConfig} className="h-56 sm:h-72 md:h-80 w-full">
               <BarChart accessibilityLayer data={quizzesConductedData}>
-                <CartesianGrid vertical={false} />
-                <XAxis dataKey="month" tickLine={false} tickMargin={10} axisLine={false} />
-                <YAxis tickLine={false} axisLine={false} tickMargin={10} />
+                <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                <XAxis dataKey="month" tickLine={false} tickMargin={10} axisLine={false} className="text-xs sm:text-sm" />
+                <YAxis tickLine={false} axisLine={false} tickMargin={10} className="text-xs sm:text-sm" />
                 <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="dot" />} />
                 <Bar dataKey="quizzes" fill="var(--color-quizzes)" radius={4} />
               </BarChart>
@@ -139,26 +149,29 @@ export default function StudentAnalysisPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Overall Student Performance</CardTitle>
-            <CardDescription>Pass vs. Fail rate across all quizzes.</CardDescription>
+        <Card className="transition-all duration-300 hover:shadow-lg animate-fade-in" style={{ animationDelay: '200ms' }}>
+          <CardHeader className="pb-2 sm:pb-4">
+            <div className="flex items-center gap-2">
+              <PieChartIcon className="h-5 w-5 text-primary" />
+              <CardTitle className="text-lg sm:text-xl">Overall Student Performance</CardTitle>
+            </div>
+            <CardDescription className="text-xs sm:text-sm">Pass vs. Fail rate across all quizzes.</CardDescription>
           </CardHeader>
           <CardContent className="flex items-center justify-center">
-            <ChartContainer config={studentPassFailChartConfig} className="mx-auto aspect-square h-80">
+            <ChartContainer config={studentPassFailChartConfig} className="mx-auto aspect-square h-56 sm:h-72 md:h-80">
               <PieChart>
                 <ChartTooltip
                   cursor={false}
                   content={<ChartTooltipContent hideLabel formatter={(value, name, props) => `${value} Students - ${props.payload.status}`}/>}
                 />
-                <Pie data={studentPassFailData} dataKey="students" nameKey="status" innerRadius={60} strokeWidth={5}>
+                <Pie data={studentPassFailData} dataKey="students" nameKey="status" innerRadius={50} strokeWidth={5}>
                   {studentPassFailData.map((entry) => (
                     <Cell key={entry.status} fill={entry.fill} />
                   ))}
                 </Pie>
                 <ChartLegend
                   content={<ChartLegendContent nameKey="status" />}
-                  className="!p-4"
+                  className="!p-2 sm:!p-4"
                 />
               </PieChart>
             </ChartContainer>
@@ -166,18 +179,18 @@ export default function StudentAnalysisPage() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
+      <Card className="transition-all duration-300 hover:shadow-lg animate-fade-in" style={{ animationDelay: '300ms' }}>
+        <CardHeader className="pb-2 sm:pb-4">
            <div className="flex items-center gap-2">
-            <Users className="h-6 w-6 text-primary" />
-            <CardTitle>Student Performance Comparison</CardTitle>
+            <Users className="h-5 w-5 text-primary" />
+            <CardTitle className="text-lg sm:text-xl">Student Performance Comparison</CardTitle>
           </div>
-          <CardDescription>
+          <CardDescription className="text-xs sm:text-sm">
             View individual student scores for a specific quiz.
           </CardDescription>
-           <div className="pt-4 flex flex-wrap items-center gap-4">
+           <div className="pt-3 sm:pt-4 flex flex-wrap items-center gap-3 sm:gap-4">
               <Select value={selectedQuiz} onValueChange={setSelectedQuiz} disabled={!selectedClass}>
-                  <SelectTrigger className="w-full sm:w-[280px]">
+                  <SelectTrigger className="w-full sm:w-[280px] h-10 sm:h-11">
                       <SelectValue placeholder="Select a quiz" />
                   </SelectTrigger>
                   <SelectContent>
@@ -189,40 +202,101 @@ export default function StudentAnalysisPage() {
             </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Roll No.</TableHead>
-                <TableHead>Student Name</TableHead>
-                <TableHead className="text-center">Score</TableHead>
-                <TableHead className="text-right">Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {performanceData.length > 0 ? (
-                performanceData.map((data) => (
-                  <TableRow key={data.id}>
-                    <TableCell className="font-mono text-xs">{data.rollNo}</TableCell>
-                    <TableCell className="font-medium">{data.name}</TableCell>
-                    <TableCell className="text-center">
+          {/* Mobile card view */}
+          <div className="sm:hidden space-y-3">
+            {performanceData.length > 0 ? (
+              performanceData.map((data, index) => (
+                <div 
+                  key={data.id} 
+                  className="p-3 rounded-lg border bg-card transition-all duration-200 hover:bg-muted/50 animate-fade-in"
+                  style={{ animationDelay: `${index * 50}ms` }}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                        <span className="text-xs font-bold text-primary">
+                          {data.name.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-medium text-sm truncate">{data.name}</p>
+                        <p className="text-xs text-muted-foreground font-mono">{data.rollNo}</p>
+                      </div>
+                    </div>
+                    <Badge variant={getBadgeVariant(data.status) as any} className="text-xs shrink-0">
+                      {data.status}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t">
+                    <span className="text-xs text-muted-foreground">Score</span>
+                    <span className={`font-semibold text-sm ${
+                      data.score !== null 
+                        ? data.score >= 60 ? 'text-green-500' : data.score >= 40 ? 'text-yellow-500' : 'text-red-500'
+                        : 'text-muted-foreground'
+                    }`}>
                       {data.score !== null ? `${data.score}%` : 'N/A'}
-                    </TableCell>
-                    <TableCell className="text-right">
-                       <Badge variant={getBadgeVariant(data.status) as any}>
-                        {data.status}
-                      </Badge>
+                    </span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center p-6 text-muted-foreground text-sm">
+                {selectedClass ? 'No student data for this class.' : 'Please select a class from the login page.'}
+              </div>
+            )}
+          </div>
+          
+          {/* Desktop table view */}
+          <div className="hidden sm:block rounded-md border overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/30">
+                  <TableHead className="hidden md:table-cell w-14">#</TableHead>
+                  <TableHead>Roll No.</TableHead>
+                  <TableHead>Student Name</TableHead>
+                  <TableHead className="text-center">Score</TableHead>
+                  <TableHead className="text-right">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {performanceData.length > 0 ? (
+                  performanceData.map((data, index) => (
+                    <TableRow key={data.id} className="transition-colors hover:bg-muted/50">
+                      <TableCell className="hidden md:table-cell">
+                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                          <span className="text-xs font-bold text-primary">
+                            {data.name.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">{data.rollNo}</TableCell>
+                      <TableCell className="font-medium">{data.name}</TableCell>
+                      <TableCell className="text-center">
+                        <span className={`font-semibold ${
+                          data.score !== null 
+                            ? data.score >= 60 ? 'text-green-500' : data.score >= 40 ? 'text-yellow-500' : 'text-red-500'
+                            : ''
+                        }`}>
+                          {data.score !== null ? `${data.score}%` : 'N/A'}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                         <Badge variant={getBadgeVariant(data.status) as any}>
+                          {data.status}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                      {selectedClass ? 'No student data for this class.' : 'Please select a class from the login page.'}
                     </TableCell>
                   </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={4} className="text-center">
-                    {selectedClass ? 'No student data for this class.' : 'Please select a class from the login page.'}
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
     </main>

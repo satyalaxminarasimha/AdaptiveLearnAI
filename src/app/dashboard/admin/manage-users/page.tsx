@@ -37,7 +37,7 @@ import {
 } from '@/components/ui/select';
 import { useUsers, User } from '@/hooks/use-users';
 import { useToast } from '@/hooks/use-toast';
-import { Users, GraduationCap, UserSquare, RefreshCw, Pencil, Trash2, Search, Eye, Filter, X, Mail, Calendar, BookOpen, Hash, Building } from 'lucide-react';
+import { Users, GraduationCap, UserSquare, RefreshCw, Pencil, Trash2, Search, Eye, Filter, X, Mail, Calendar, BookOpen, Hash, Building, UserCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function ManageUsersPage() {
@@ -232,7 +232,7 @@ export default function ManageUsersPage() {
       return (
         <div className="space-y-2">
           {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="flex items-center space-x-4">
+            <div key={i} className="flex items-center space-x-4 animate-pulse">
               <Skeleton className="h-12 w-full" />
             </div>
           ))}
@@ -242,126 +242,168 @@ export default function ManageUsersPage() {
 
     if (filteredUsers.length === 0) {
       return (
-        <div className="text-center py-8 text-muted-foreground">
-          No users found.
+        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+          <UserCircle className="h-12 w-12 mb-3 opacity-50" />
+          <p className="text-sm sm:text-base">No users found.</p>
+          <p className="text-xs sm:text-sm">Try adjusting your search or filters.</p>
         </div>
       );
     }
 
     return (
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Name</TableHead>
-            <TableHead>Email</TableHead>
-            <TableHead>Role</TableHead>
-            <TableHead>Details</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Joined</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {filteredUsers.map((user) => (
-            <TableRow key={user._id}>
-              <TableCell className="font-medium">{user.name}</TableCell>
-              <TableCell>{user.email}</TableCell>
-              <TableCell>
-                <Badge variant="outline" className={cn(
-                  user.role === 'admin' && 'border-purple-500 text-purple-500',
-                  user.role === 'professor' && 'border-blue-500 text-blue-500',
-                  user.role === 'student' && 'border-green-500 text-green-500',
-                )}>
-                  {user.role}
-                </Badge>
-              </TableCell>
-              <TableCell className="text-sm text-muted-foreground">
-                {user.role === 'student' && (
-                  <span>{user.rollNo || '-'} | {user.batch || '-'} | {user.section || '-'}</span>
-                )}
-                {user.role === 'professor' && (
-                  <span>{user.expertise || '-'}</span>
-                )}
-                {user.role === 'admin' && '-'}
-              </TableCell>
-              <TableCell>
-                <Badge variant={user.isApproved ? 'default' : 'secondary'} className={cn(
-                  user.isApproved ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                )}>
-                  {user.isApproved ? 'Approved' : 'Pending'}
-                </Badge>
-              </TableCell>
-              <TableCell className="text-sm text-muted-foreground">
-                {formatDate(user.createdAt)}
-              </TableCell>
-              <TableCell className="text-right">
-                <div className="flex justify-end gap-2">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleViewClick(user)}
-                    title="View Details"
-                  >
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleEditClick(user)}
-                    title="Edit User"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-destructive hover:text-destructive"
-                    onClick={() => handleDeleteClick(user._id)}
-                    title="Delete User"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </TableCell>
+      <div className="rounded-lg border overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/50">
+              <TableHead className="font-semibold">Name</TableHead>
+              <TableHead className="font-semibold hidden md:table-cell">Email</TableHead>
+              <TableHead className="font-semibold hidden sm:table-cell">Role</TableHead>
+              <TableHead className="font-semibold hidden lg:table-cell">Details</TableHead>
+              <TableHead className="font-semibold hidden sm:table-cell">Status</TableHead>
+              <TableHead className="font-semibold hidden xl:table-cell">Joined</TableHead>
+              <TableHead className="text-right font-semibold">Actions</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {filteredUsers.map((user, index) => (
+              <TableRow 
+                key={user._id}
+                className="group cursor-pointer animate-fade-in"
+                style={{ animationDelay: `${index * 30}ms` }}
+              >
+                <TableCell>
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110">
+                      <span className="text-xs sm:text-sm font-semibold text-primary">
+                        {user.name.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-medium truncate text-sm">{user.name}</p>
+                      <p className="text-xs text-muted-foreground truncate md:hidden">{user.email}</p>
+                      <div className="flex items-center gap-1.5 sm:hidden mt-0.5">
+                        <Badge variant="outline" className={cn(
+                          "text-[10px] px-1.5 py-0",
+                          user.role === 'admin' && 'border-purple-500 text-purple-500',
+                          user.role === 'professor' && 'border-blue-500 text-blue-500',
+                          user.role === 'student' && 'border-green-500 text-green-500',
+                        )}>
+                          {user.role}
+                        </Badge>
+                        <Badge variant={user.isApproved ? 'default' : 'secondary'} className={cn(
+                          "text-[10px] px-1.5 py-0",
+                          user.isApproved ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                        )}>
+                          {user.isApproved ? '✓' : '⏳'}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                </TableCell>
+                <TableCell className="hidden md:table-cell">
+                  <span className="text-muted-foreground truncate block max-w-[200px]">{user.email}</span>
+                </TableCell>
+                <TableCell className="hidden sm:table-cell">
+                  <Badge variant="outline" className={cn(
+                    "transition-colors",
+                    user.role === 'admin' && 'border-purple-500 text-purple-500',
+                    user.role === 'professor' && 'border-blue-500 text-blue-500',
+                    user.role === 'student' && 'border-green-500 text-green-500',
+                  )}>
+                    {user.role}
+                  </Badge>
+                </TableCell>
+                <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
+                  {user.role === 'student' && (
+                    <span className="truncate block max-w-[150px]">{user.rollNo || '-'} | {user.batch || '-'} | {user.section || '-'}</span>
+                  )}
+                  {user.role === 'professor' && (
+                    <span className="truncate block max-w-[150px]">{user.expertise || '-'}</span>
+                  )}
+                  {user.role === 'admin' && '-'}
+                </TableCell>
+                <TableCell className="hidden sm:table-cell">
+                  <Badge variant={user.isApproved ? 'default' : 'secondary'} className={cn(
+                    "transition-colors",
+                    user.isApproved ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
+                  )}>
+                    {user.isApproved ? 'Approved' : 'Pending'}
+                  </Badge>
+                </TableCell>
+                <TableCell className="hidden xl:table-cell text-sm text-muted-foreground">
+                  {formatDate(user.createdAt)}
+                </TableCell>
+                <TableCell className="text-right">
+                  <div className="flex justify-end gap-1 sm:gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 transition-colors hover:bg-primary/10 hover:text-primary"
+                      onClick={() => handleViewClick(user)}
+                      title="View Details"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 transition-colors hover:bg-blue-100 hover:text-blue-600 dark:hover:bg-blue-900/30"
+                      onClick={() => handleEditClick(user)}
+                      title="Edit User"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-destructive hover:text-destructive hover:bg-red-100 dark:hover:bg-red-900/30"
+                      onClick={() => handleDeleteClick(user._id)}
+                      title="Delete User"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
     );
   };
 
   return (
-    <main className="flex-1 space-y-6 p-4 md:p-6">
-      <div className="flex items-center justify-between">
+    <main className="flex-1 space-y-4 sm:space-y-6 p-3 sm:p-4 md:p-6 animate-fade-in">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div className="space-y-1">
-          <h1 className="text-3xl font-bold tracking-tight">Manage Users</h1>
-          <p className="text-muted-foreground">View and manage all users in the platform.</p>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Manage Users</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">View and manage all users in the platform.</p>
         </div>
-        <Button variant="outline" onClick={refetch} disabled={isLoading}>
+        <Button variant="outline" onClick={refetch} disabled={isLoading} className="w-full sm:w-auto">
           <RefreshCw className={cn("h-4 w-4 mr-2", isLoading && "animate-spin")} />
           Refresh
         </Button>
       </div>
 
       <Card>
-        <CardHeader>
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <CardHeader className="pb-3 sm:pb-4">
+          <div className="flex flex-col gap-3 sm:gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
               <div>
-                <CardTitle>Users</CardTitle>
-                <CardDescription>
+                <CardTitle className="text-base sm:text-lg">Users</CardTitle>
+                <CardDescription className="text-xs sm:text-sm">
                   {filteredUsers.length} user{filteredUsers.length !== 1 ? 's' : ''} found
                 </CardDescription>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="relative flex-1 md:w-72">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                <div className="relative flex-1 sm:w-64 md:w-72">
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search by name, email, or roll no..."
+                    placeholder="Search name, email, roll no..."
                     value={searchInput}
                     onChange={(e) => setSearchInput(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                    className="pl-8 pr-8"
+                    className="pl-8 pr-8 text-sm"
                   />
                   {searchInput && (
                     <Button
@@ -374,25 +416,28 @@ export default function ManageUsersPage() {
                     </Button>
                   )}
                 </div>
-                <Button onClick={handleSearch} size="sm">
-                  <Search className="h-4 w-4 mr-2" />
-                  Search
-                </Button>
-                {activeTab === 'student' && (
-                  <Button 
-                    variant={showFilters ? "secondary" : "outline"} 
-                    size="sm"
-                    onClick={() => setShowFilters(!showFilters)}
-                  >
-                    <Filter className="h-4 w-4 mr-2" />
-                    Filters
-                    {hasActiveFilters && (
-                      <Badge variant="destructive" className="ml-2 h-5 w-5 p-0 flex items-center justify-center text-xs">
-                        !
-                      </Badge>
-                    )}
+                <div className="flex gap-2">
+                  <Button onClick={handleSearch} size="sm" className="flex-1 sm:flex-initial">
+                    <Search className="h-4 w-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Search</span>
                   </Button>
-                )}
+                  {activeTab === 'student' && (
+                    <Button 
+                      variant={showFilters ? "secondary" : "outline"} 
+                      size="sm"
+                      onClick={() => setShowFilters(!showFilters)}
+                      className="flex-1 sm:flex-initial"
+                    >
+                      <Filter className="h-4 w-4 sm:mr-2" />
+                      <span className="hidden sm:inline">Filters</span>
+                      {hasActiveFilters && (
+                        <Badge variant="destructive" className="ml-1.5 h-4 w-4 sm:h-5 sm:w-5 p-0 flex items-center justify-center text-[10px]">
+                          !
+                        </Badge>
+                      )}
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
             

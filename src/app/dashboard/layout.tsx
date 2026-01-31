@@ -3,17 +3,21 @@
 
 import { useEffect } from 'react';
 import {
+  AlertTriangle,
   BarChart2,
   BookCheck,
   BookCopy,
   BrainCircuit,
   FileCheck,
+  FileEdit,
   FilePen,
   FileText,
   LayoutDashboard,
   ListChecks,
   LogOut,
+  MessageSquare,
   PlusCircle,
+  Trophy,
   User as UserIcon,
   UserPlus,
   Users,
@@ -116,6 +120,19 @@ const AdminNav = () => {
       </SidebarMenuItem>
       <SidebarMenuItem>
         <SidebarMenuButton 
+          href="/dashboard/admin/change-requests" 
+          tooltip="Change Requests"
+          className={cn(
+            "transition-all duration-200",
+            pathname === '/dashboard/admin/change-requests' && "bg-sidebar-accent text-sidebar-accent-foreground"
+          )}
+        >
+          <FileEdit className="transition-transform group-hover:scale-110" />
+          Change Requests
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+      <SidebarMenuItem>
+        <SidebarMenuButton 
           href="/dashboard/admin/profile" 
           tooltip="My Profile"
           className={cn(
@@ -150,6 +167,32 @@ const ProfessorNav = () => {
       </SidebarMenuItem>
       <SidebarMenuItem>
         <SidebarMenuButton 
+          href="/dashboard/professor/manage-classes" 
+          tooltip="Manage Classes"
+          className={cn(
+            "transition-all duration-200",
+            pathname === '/dashboard/professor/manage-classes' && "bg-sidebar-accent text-sidebar-accent-foreground"
+          )}
+        >
+          <BookCopy className="transition-transform group-hover:scale-110" />
+          Manage Classes
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+      <SidebarMenuItem>
+        <SidebarMenuButton 
+          href="/dashboard/professor/view-students" 
+          tooltip="View Students"
+          className={cn(
+            "transition-all duration-200",
+            pathname === '/dashboard/professor/view-students' && "bg-sidebar-accent text-sidebar-accent-foreground"
+          )}
+        >
+          <Users className="transition-transform group-hover:scale-110" />
+          View Students
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+      <SidebarMenuItem>
+        <SidebarMenuButton 
           href="/dashboard/professor/create-quiz" 
           tooltip="Create Quiz"
           className={cn(
@@ -170,7 +213,7 @@ const ProfessorNav = () => {
             pathname === '/dashboard/professor/student-analysis' && "bg-sidebar-accent text-sidebar-accent-foreground"
           )}
         >
-          <Users className="transition-transform group-hover:scale-110" />
+          <BarChart2 className="transition-transform group-hover:scale-110" />
           Student Analysis
         </SidebarMenuButton>
       </SidebarMenuItem>
@@ -185,6 +228,32 @@ const ProfessorNav = () => {
         >
           <BookCheck className="transition-transform group-hover:scale-110" />
           Update Syllabus
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+      <SidebarMenuItem>
+        <SidebarMenuButton 
+          href="/dashboard/professor/discussions" 
+          tooltip="Discussions"
+          className={cn(
+            "transition-all duration-200",
+            pathname === '/dashboard/professor/discussions' && "bg-sidebar-accent text-sidebar-accent-foreground"
+          )}
+        >
+          <MessageSquare className="transition-transform group-hover:scale-110" />
+          Discussions
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+      <SidebarMenuItem>
+        <SidebarMenuButton 
+          href="/dashboard/professor/change-requests" 
+          tooltip="Change Requests"
+          className={cn(
+            "transition-all duration-200",
+            pathname === '/dashboard/professor/change-requests' && "bg-sidebar-accent text-sidebar-accent-foreground"
+          )}
+        >
+          <FileEdit className="transition-transform group-hover:scale-110" />
+          Change Requests
         </SidebarMenuButton>
       </SidebarMenuItem>
       <SidebarMenuItem>
@@ -258,6 +327,58 @@ const StudentNav = () => {
         >
           <FileText className="transition-transform group-hover:scale-110" />
           Reviews
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+      <SidebarMenuItem>
+        <SidebarMenuButton 
+          href="/dashboard/student/weak-areas" 
+          tooltip="Weak Areas"
+          className={cn(
+            "transition-all duration-200",
+            pathname === '/dashboard/student/weak-areas' && "bg-sidebar-accent text-sidebar-accent-foreground"
+          )}
+        >
+          <AlertTriangle className="transition-transform group-hover:scale-110" />
+          Weak Areas
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+      <SidebarMenuItem>
+        <SidebarMenuButton 
+          href="/dashboard/student/rankings" 
+          tooltip="Rankings"
+          className={cn(
+            "transition-all duration-200",
+            pathname === '/dashboard/student/rankings' && "bg-sidebar-accent text-sidebar-accent-foreground"
+          )}
+        >
+          <Trophy className="transition-transform group-hover:scale-110" />
+          Rankings
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+      <SidebarMenuItem>
+        <SidebarMenuButton 
+          href="/dashboard/student/discussions" 
+          tooltip="Discussions"
+          className={cn(
+            "transition-all duration-200",
+            pathname === '/dashboard/student/discussions' && "bg-sidebar-accent text-sidebar-accent-foreground"
+          )}
+        >
+          <MessageSquare className="transition-transform group-hover:scale-110" />
+          Discussions
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+      <SidebarMenuItem>
+        <SidebarMenuButton 
+          href="/dashboard/student/change-requests" 
+          tooltip="Change Requests"
+          className={cn(
+            "transition-all duration-200",
+            pathname === '/dashboard/student/change-requests' && "bg-sidebar-accent text-sidebar-accent-foreground"
+          )}
+        >
+          <FileEdit className="transition-transform group-hover:scale-110" />
+          Change Requests
         </SidebarMenuButton>
       </SidebarMenuItem>
       <SidebarMenuItem>

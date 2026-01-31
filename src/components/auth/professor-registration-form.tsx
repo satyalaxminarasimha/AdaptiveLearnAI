@@ -23,8 +23,8 @@ const passwordValidation = new RegExp(
 const professorFormSchema = z.object({
   name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
   email: z.string().email({ message: 'Please enter a valid email address.' }).regex(
-    /^[a-zA-Z0-9_.-]+.csm@anits\.edu\.in$/,
-    "Invalid email format. Expected: 'name.csm@anits.edu.in'"
+    /^[a-zA-Z0-9_.+-]+@anits\.edu\.in$/,
+    "Email must be a valid @anits.edu.in address"
   ),
   phoneNumber: z.string().min(10, { message: 'Please enter a valid phone number.' }),
   password: z.string().min(8, { message: 'Password must be at least 8 characters.' }).regex(passwordValidation, {
@@ -32,6 +32,7 @@ const professorFormSchema = z.object({
   }),
   confirmPassword: z.string(),
   subjectExpertise: z.string().min(2, { message: 'Subject expertise is required.' }),
+  department: z.string().min(2, { message: 'Department is required.' }),
   yearsOfExperience: z.coerce.number().min(0, { message: 'Years of experience cannot be negative.' }),
 }).refine(data => data.password === data.confirmPassword, {
   message: "Passwords don't match",
@@ -47,6 +48,7 @@ const defaultValues: Partial<ProfessorFormValues> = {
   password: '',
   confirmPassword: '',
   subjectExpertise: '',
+  department: 'CSM',
   yearsOfExperience: 0,
 };
 
@@ -72,6 +74,8 @@ export function ProfessorRegistrationForm() {
           password: data.password,
           role: 'professor',
           expertise: data.subjectExpertise,
+          department: data.department,
+          phoneNumber: data.phoneNumber,
         }),
       });
 
@@ -122,7 +126,7 @@ export function ProfessorRegistrationForm() {
             <FormItem>
               <FormLabel>Email</FormLabel>
               <FormControl>
-                <Input placeholder="alan.turing.csm@anits.edu.in" {...field} />
+                <Input placeholder="yourname@anits.edu.in" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -175,6 +179,19 @@ export function ProfessorRegistrationForm() {
               <FormLabel>Subject Expertise</FormLabel>
               <FormControl>
                 <Input placeholder="Computer Science" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="department"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Department</FormLabel>
+              <FormControl>
+                <Input placeholder="CSM" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>

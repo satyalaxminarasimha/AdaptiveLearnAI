@@ -21,6 +21,13 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(users);
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'Internal server error';
+    if (message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (message === 'Forbidden') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     console.error('Get users error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },

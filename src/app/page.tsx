@@ -27,8 +27,6 @@ import { Label } from '@/components/ui/label';
 import { ProfessorRegistrationForm } from '@/components/auth/professor-registration-form';
 import { StudentRegistrationForm } from '@/components/auth/student-registration-form';
 import { useToast } from '@/hooks/use-toast';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { professorClasses } from '@/lib/mock-data';
 import { useAuth } from '@/context/auth-context';
 
 type Role = 'Administrator' | 'Professor' | 'Student';
@@ -62,7 +60,6 @@ export default function LoginPage() {
   const [showRegistration, setShowRegistration] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [selectedClassIndex, setSelectedClassIndex] = useState('');
 
   const router = useRouter();
   const { toast } = useToast();
@@ -114,21 +111,9 @@ export default function LoginPage() {
         });
         return;
       }
-      if (!selectedClassIndex) {
-        toast({
-          variant: 'destructive',
-          title: 'Class not selected',
-          description: 'Please select a class to proceed.',
-        });
-        return;
-      }
 
       const result = await login(email, password);
       if (result.success) {
-        const selectedClass = professorClasses[parseInt(selectedClassIndex, 10)];
-        if (selectedClass) {
-          localStorage.setItem('professorClass', JSON.stringify(selectedClass));
-        }
         router.push('/dashboard/professor');
       } else {
         toast({
@@ -192,7 +177,7 @@ export default function LoginPage() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-muted/20 p-4">
       <Dialog open={showRegistration} onOpenChange={setShowRegistration}>
-          <DialogContent className="sm:max-w-[425px]">
+          <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Request an Account</DialogTitle>
               <DialogDescription>
@@ -263,23 +248,7 @@ export default function LoginPage() {
                     <Input id="password" type="password" required placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
                     </div>
 
-                    {selectedRole === 'Professor' && (
-                       <div className="space-y-2">
-                        <Label htmlFor="class">Class</Label>
-                        <Select value={selectedClassIndex} onValueChange={setSelectedClassIndex}>
-                          <SelectTrigger id="class">
-                            <SelectValue placeholder="Select a class to manage" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {professorClasses.map((c, index) => (
-                              <SelectItem key={index} value={String(index)}>
-                                {`${c.subject} - Batch ${c.batch} - Section ${c.section}`}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
+
                     
                     <div className="pt-2">
                       <Button type="submit" className="w-full bg-primary hover:bg-primary/90">

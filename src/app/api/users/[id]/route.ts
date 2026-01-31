@@ -26,6 +26,13 @@ export async function GET(
 
     return NextResponse.json(user);
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'Internal server error';
+    if (message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (message === 'Forbidden') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     console.error('Get user error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
@@ -76,6 +83,13 @@ export async function PATCH(
       user: user,
     });
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'Internal server error';
+    if (message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (message === 'Forbidden') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     console.error('Update user error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
@@ -109,6 +123,13 @@ export async function DELETE(
       message: 'User deleted successfully',
     });
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'Internal server error';
+    if (message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (message === 'Forbidden') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     console.error('Delete user error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },

@@ -10,6 +10,16 @@ export const studentUser = {
   avatarUrl: 'https://picsum.photos/seed/10/40/40',
   batch: '2022',
   section: 'A',
+  branch: 'CSM',
+  semester: '5',
+  phoneNumber: '9876543210',
+  fatherName: 'John Davis',
+  motherName: 'Mary Davis',
+  parentPhoneNumber: '9876543211',
+  address: '123 Main Street, City',
+  dateOfBirth: '2004-05-15',
+  gender: 'female',
+  bloodGroup: 'O+',
 };
 
 export const professorUser = {

@@ -23,7 +23,15 @@ import {
   Save,
   Hash,
   Users,
-  Calendar
+  Calendar,
+  Phone,
+  MapPin,
+  Cake,
+  Droplets,
+  UserCircle,
+  BookOpen,
+  Building2,
+  Contact
 } from 'lucide-react';
 import { studentUser } from '@/lib/mock-data';
 import { useStudentSession } from '@/context/student-session-context';
@@ -106,15 +114,15 @@ export default function StudentProfilePage() {
         </p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2">
         {/* Profile Information Card */}
         <Card className="transition-all duration-300 hover:shadow-lg animate-fade-in" style={{ animationDelay: '100ms' }}>
           <CardHeader className="pb-4">
             <div className="flex items-center gap-2">
               <User className="h-5 w-5 text-primary" />
-              <CardTitle className="text-lg">Profile Information</CardTitle>
+              <CardTitle className="text-lg">Personal Information</CardTitle>
             </div>
-            <CardDescription>Your account details</CardDescription>
+            <CardDescription>Your basic account details</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="flex items-center gap-4">
@@ -134,7 +142,7 @@ export default function StudentProfilePage() {
 
             <Separator />
 
-            <div className="space-y-4">
+            <div className="grid gap-3">
               <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
                 <Mail className="h-5 w-5 text-muted-foreground" />
                 <div>
@@ -143,6 +151,68 @@ export default function StudentProfilePage() {
                 </div>
               </div>
 
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                <Phone className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Phone Number</p>
+                  <p className="font-medium">{currentUser.phoneNumber || 'Not provided'}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                <Cake className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Date of Birth</p>
+                  <p className="font-medium">
+                    {currentUser.dateOfBirth 
+                      ? new Date(currentUser.dateOfBirth).toLocaleDateString('en-IN', { 
+                          day: 'numeric', 
+                          month: 'long', 
+                          year: 'numeric' 
+                        })
+                      : 'Not provided'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                <UserCircle className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Gender</p>
+                  <p className="font-medium capitalize">{currentUser.gender || 'Not provided'}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                <Droplets className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Blood Group</p>
+                  <p className="font-medium">{currentUser.bloodGroup || 'Not provided'}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                <MapPin className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Address</p>
+                  <p className="font-medium">{currentUser.address || 'Not provided'}</p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Academic Information Card */}
+        <Card className="transition-all duration-300 hover:shadow-lg animate-fade-in" style={{ animationDelay: '150ms' }}>
+          <CardHeader className="pb-4">
+            <div className="flex items-center gap-2">
+              <BookOpen className="h-5 w-5 text-primary" />
+              <CardTitle className="text-lg">Academic Information</CardTitle>
+            </div>
+            <CardDescription>Your academic details</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3">
               <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
                 <Hash className="h-5 w-5 text-muted-foreground" />
                 <div>
@@ -168,10 +238,64 @@ export default function StudentProfilePage() {
               </div>
 
               <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                <Building2 className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Branch</p>
+                  <p className="font-medium">{currentUser.branch || 'Not assigned'}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                <GraduationCap className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Semester</p>
+                  <p className="font-medium">{currentUser.semester || 'Not assigned'}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
                 <CheckCircle2 className="h-5 w-5 text-green-500" />
                 <div>
                   <p className="text-xs text-muted-foreground">Account Status</p>
                   <p className="font-medium text-green-600">Active & Approved</p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Parent/Guardian Information Card */}
+        <Card className="transition-all duration-300 hover:shadow-lg animate-fade-in" style={{ animationDelay: '200ms' }}>
+          <CardHeader className="pb-4">
+            <div className="flex items-center gap-2">
+              <Contact className="h-5 w-5 text-primary" />
+              <CardTitle className="text-lg">Parent/Guardian Information</CardTitle>
+            </div>
+            <CardDescription>Your parent or guardian details</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3">
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                <User className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Father's Name</p>
+                  <p className="font-medium">{currentUser.fatherName || 'Not provided'}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                <User className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Mother's Name</p>
+                  <p className="font-medium">{currentUser.motherName || 'Not provided'}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                <Phone className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Parent's Phone Number</p>
+                  <p className="font-medium">{currentUser.parentPhoneNumber || 'Not provided'}</p>
                 </div>
               </div>
             </div>

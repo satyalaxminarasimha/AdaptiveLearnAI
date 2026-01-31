@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, XAxis, YAxis } from 'recharts';
 import {
   Select,
@@ -27,71 +27,129 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import {
-  quizzesConductedData,
-  quizzesConductedChartConfig,
-  studentPassFailData,
-  studentPassFailChartConfig,
-  allStudents,
-  quizzesBySubject,
-  allQuizPerformances,
-} from '@/lib/mock-data';
-import { Users, BarChart3, PieChart as PieChartIcon, UserCircle, TrendingUp, TrendingDown } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Users, BarChart3, PieChart as PieChartIcon, Trophy, TrendingUp, TrendingDown, Medal, Crown, Award } from 'lucide-react';
 import { useProfessorSession } from '@/context/professor-session-context';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useToast } from '@/hooks/use-toast';
+
+interface StudentRanking {
+  _id: string;
+  studentId: {
+    _id: string;
+    name: string;
+    email: string;
+    rollNumber?: string;
+  };
+  batch: string;
+  section?: string;
+  totalScore: number;
+  averageScore: number;
+  quizzesAttempted: number;
+  classRank: number;
+  batchRank: number;
+  overallRank: number;
+  subjectScores: { subject: string; score: number; attempts: number }[];
+  currentStreak: number;
+}
+
+interface Student {
+  _id: string;
+  name: string;
+  email: string;
+  rollNumber?: string;
+  batch?: string;
+  section?: string;
+}
 
 export default function StudentAnalysisPage() {
-  const { selectedClass, isLoading } = useProfessorSession();
-  const [selectedQuiz, setSelectedQuiz] = useState('');
+  const { selectedClass, isLoading: sessionLoading } = useProfessorSession();
+  const { toast } = useToast();
+  const [rankings, setRankings] = useState<StudentRanking[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('class');
 
-  // Get available quizzes for the selected subject
-  const quizzesForSubject = useMemo(() => {
-    if (!selectedClass) return [];
-    return quizzesBySubject[selectedClass.subject as keyof typeof quizzesBySubject] || [];
-  }, [selectedClass]);
+  const fetchData = useCallback(async () => {
+    if (!selectedClass) return;
+    
+    setIsLoading(true);
+    try {
+      // Fetch rankings
+      const rankingParams = new URLSearchParams({
+        type: 'class',
+        batch: selectedClass.batch,
+        ...(selectedClass.section && { section: selectedClass.section }),
+      });
+      
+      const [rankingsRes, studentsRes] = await Promise.all([
+        fetch(`/api/rankings?${rankingParams}`),
+        fetch(`/api/students?batch=${selectedClass.batch}${selectedClass.section ? `&section=${selectedClass.section}` : ''}`),
+      ]);
+      
+      if (rankingsRes.ok) {
+        const data = await rankingsRes.json();
+        setRankings(data);
+      }
+      
+      if (studentsRes.ok) {
+        const data = await studentsRes.json();
+        setStudents(data);
+      }
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load student data',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedClass, toast]);
 
-  // Set the first available quiz when the subject changes
   useEffect(() => {
-    if (quizzesForSubject.length > 0) {
-      setSelectedQuiz(quizzesForSubject[0]);
-    } else {
-      setSelectedQuiz('');
-    }
-  }, [quizzesForSubject]);
+    fetchData();
+  }, [fetchData]);
 
-  // Filter students based on the selected class
-  const filteredStudents = useMemo(() => {
-    if (!selectedClass) return [];
-    return allStudents
-      .filter(student => student.batch === selectedClass.batch && student.section === selectedClass.section)
-      .sort((a, b) => a.rollNo.localeCompare(b.rollNo));
-  }, [selectedClass]);
+  // Calculate pass/fail stats
+  const passFailStats = useMemo(() => {
+    const passed = rankings.filter(r => r.averageScore >= 40).length;
+    const failed = rankings.filter(r => r.averageScore < 40).length;
+    return [
+      { status: 'Pass', students: passed, fill: 'hsl(var(--chart-1))' },
+      { status: 'Fail', students: failed, fill: 'hsl(var(--chart-2))' },
+    ];
+  }, [rankings]);
 
-  // Combine student list with their performance for the selected quiz
-  const performanceData = useMemo(() => {
-    if (!selectedQuiz) return [];
-    return filteredStudents.map(student => {
-      const performance = allQuizPerformances.find(p => p.studentId === student.id && p.quiz === selectedQuiz);
-      return {
-        ...student,
-        score: performance?.score ?? null,
-        status: performance?.status ?? 'Not Attempted',
-      };
-    });
-  }, [filteredStudents, selectedQuiz]);
+  // Calculate performance distribution
+  const performanceDistribution = useMemo(() => {
+    const excellent = rankings.filter(r => r.averageScore >= 80).length;
+    const good = rankings.filter(r => r.averageScore >= 60 && r.averageScore < 80).length;
+    const average = rankings.filter(r => r.averageScore >= 40 && r.averageScore < 60).length;
+    const poor = rankings.filter(r => r.averageScore < 40).length;
+    return [
+      { category: 'Excellent', count: excellent },
+      { category: 'Good', count: good },
+      { category: 'Average', count: average },
+      { category: 'Poor', count: poor },
+    ];
+  }, [rankings]);
 
-  const getBadgeVariant = (status: string) => {
-    switch (status) {
-      case 'Pass':
-        return 'default';
-      case 'Fail':
-        return 'destructive';
-      default:
-        return 'secondary';
-    }
+  const getBadgeVariant = (score: number) => {
+    if (score >= 60) return 'default';
+    if (score >= 40) return 'secondary';
+    return 'destructive';
   };
 
-  if (isLoading) {
+  const getRankBadge = (rank: number) => {
+    if (rank === 1) return <Crown className="h-5 w-5 text-yellow-500" />;
+    if (rank === 2) return <Medal className="h-5 w-5 text-gray-400" />;
+    if (rank === 3) return <Award className="h-5 w-5 text-amber-600" />;
+    return <span className="font-mono">#{rank}</span>;
+  };
+
+  if (sessionLoading || isLoading) {
       return (
           <main className="flex-1 space-y-6 p-4 md:p-6 animate-fade-in">
               <div className="space-y-2">
@@ -132,18 +190,23 @@ export default function StudentAnalysisPage() {
           <CardHeader className="pb-2 sm:pb-4">
             <div className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-green-500" />
-              <CardTitle className="text-lg sm:text-xl">Quizzes Conducted</CardTitle>
+              <CardTitle className="text-lg sm:text-xl">Performance Distribution</CardTitle>
             </div>
-            <CardDescription className="text-xs sm:text-sm">Number of quizzes conducted per month.</CardDescription>
+            <CardDescription className="text-xs sm:text-sm">Student performance categories based on average scores.</CardDescription>
           </CardHeader>
           <CardContent className="pl-0 sm:pl-2">
-            <ChartContainer config={quizzesConductedChartConfig} className="h-56 sm:h-72 md:h-80 w-full">
-              <BarChart accessibilityLayer data={quizzesConductedData}>
+            <ChartContainer 
+              config={{
+                count: { label: "Students", color: "hsl(var(--chart-1))" }
+              }} 
+              className="h-56 sm:h-72 md:h-80 w-full"
+            >
+              <BarChart accessibilityLayer data={performanceDistribution}>
                 <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                <XAxis dataKey="month" tickLine={false} tickMargin={10} axisLine={false} className="text-xs sm:text-sm" />
+                <XAxis dataKey="category" tickLine={false} tickMargin={10} axisLine={false} className="text-xs sm:text-sm" />
                 <YAxis tickLine={false} axisLine={false} tickMargin={10} className="text-xs sm:text-sm" />
                 <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="dot" />} />
-                <Bar dataKey="quizzes" fill="var(--color-quizzes)" radius={4} />
+                <Bar dataKey="count" fill="hsl(var(--chart-1))" radius={4} />
               </BarChart>
             </ChartContainer>
           </CardContent>
@@ -153,19 +216,25 @@ export default function StudentAnalysisPage() {
           <CardHeader className="pb-2 sm:pb-4">
             <div className="flex items-center gap-2">
               <PieChartIcon className="h-5 w-5 text-primary" />
-              <CardTitle className="text-lg sm:text-xl">Overall Student Performance</CardTitle>
+              <CardTitle className="text-lg sm:text-xl">Overall Pass/Fail Rate</CardTitle>
             </div>
             <CardDescription className="text-xs sm:text-sm">Pass vs. Fail rate across all quizzes.</CardDescription>
           </CardHeader>
           <CardContent className="flex items-center justify-center">
-            <ChartContainer config={studentPassFailChartConfig} className="mx-auto aspect-square h-56 sm:h-72 md:h-80">
+            <ChartContainer 
+              config={{
+                Pass: { label: "Pass", color: "hsl(var(--chart-1))" },
+                Fail: { label: "Fail", color: "hsl(var(--chart-2))" },
+              }} 
+              className="mx-auto aspect-square h-56 sm:h-72 md:h-80"
+            >
               <PieChart>
                 <ChartTooltip
                   cursor={false}
                   content={<ChartTooltipContent hideLabel formatter={(value, name, props) => `${value} Students - ${props.payload.status}`}/>}
                 />
-                <Pie data={studentPassFailData} dataKey="students" nameKey="status" innerRadius={50} strokeWidth={5}>
-                  {studentPassFailData.map((entry) => (
+                <Pie data={passFailStats} dataKey="students" nameKey="status" innerRadius={50} strokeWidth={5}>
+                  {passFailStats.map((entry) => (
                     <Cell key={entry.status} fill={entry.fill} />
                   ))}
                 </Pie>
@@ -182,66 +251,56 @@ export default function StudentAnalysisPage() {
       <Card className="transition-all duration-300 hover:shadow-lg animate-fade-in" style={{ animationDelay: '300ms' }}>
         <CardHeader className="pb-2 sm:pb-4">
            <div className="flex items-center gap-2">
-            <Users className="h-5 w-5 text-primary" />
-            <CardTitle className="text-lg sm:text-xl">Student Performance Comparison</CardTitle>
+            <Trophy className="h-5 w-5 text-yellow-500" />
+            <CardTitle className="text-lg sm:text-xl">Student Rankings</CardTitle>
           </div>
           <CardDescription className="text-xs sm:text-sm">
-            View individual student scores for a specific quiz.
+            View student rankings and performance in your class.
           </CardDescription>
-           <div className="pt-3 sm:pt-4 flex flex-wrap items-center gap-3 sm:gap-4">
-              <Select value={selectedQuiz} onValueChange={setSelectedQuiz} disabled={!selectedClass}>
-                  <SelectTrigger className="w-full sm:w-[280px] h-10 sm:h-11">
-                      <SelectValue placeholder="Select a quiz" />
-                  </SelectTrigger>
-                  <SelectContent>
-                      {quizzesForSubject.map(quiz => (
-                          <SelectItem key={quiz} value={quiz}>{quiz}</SelectItem>
-                      ))}
-                  </SelectContent>
-              </Select>
-            </div>
         </CardHeader>
         <CardContent>
           {/* Mobile card view */}
           <div className="sm:hidden space-y-3">
-            {performanceData.length > 0 ? (
-              performanceData.map((data, index) => (
+            {rankings.length > 0 ? (
+              rankings.map((ranking, index) => (
                 <div 
-                  key={data.id} 
-                  className="p-3 rounded-lg border bg-card transition-all duration-200 hover:bg-muted/50 animate-fade-in"
+                  key={ranking._id} 
+                  className={`p-3 rounded-lg border bg-card transition-all duration-200 hover:bg-muted/50 animate-fade-in ${
+                    ranking.classRank <= 3 ? 'ring-2 ring-yellow-400/50' : ''
+                  }`}
                   style={{ animationDelay: `${index * 50}ms` }}
                 >
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                        <span className="text-xs font-bold text-primary">
-                          {data.name.charAt(0).toUpperCase()}
-                        </span>
+                        {getRankBadge(ranking.classRank)}
                       </div>
                       <div className="min-w-0">
-                        <p className="font-medium text-sm truncate">{data.name}</p>
-                        <p className="text-xs text-muted-foreground font-mono">{data.rollNo}</p>
+                        <p className="font-medium text-sm truncate">{ranking.studentId?.name || 'Unknown'}</p>
+                        <p className="text-xs text-muted-foreground font-mono">{ranking.studentId?.rollNumber || ranking.studentId?.email}</p>
                       </div>
                     </div>
-                    <Badge variant={getBadgeVariant(data.status) as any} className="text-xs shrink-0">
-                      {data.status}
+                    <Badge variant={getBadgeVariant(ranking.averageScore) as any} className="text-xs shrink-0">
+                      {ranking.averageScore >= 40 ? 'Pass' : 'Fail'}
                     </Badge>
                   </div>
                   <div className="flex items-center justify-between pt-2 border-t">
-                    <span className="text-xs text-muted-foreground">Score</span>
+                    <span className="text-xs text-muted-foreground">Avg Score</span>
                     <span className={`font-semibold text-sm ${
-                      data.score !== null 
-                        ? data.score >= 60 ? 'text-green-500' : data.score >= 40 ? 'text-yellow-500' : 'text-red-500'
-                        : 'text-muted-foreground'
+                      ranking.averageScore >= 60 ? 'text-green-500' : ranking.averageScore >= 40 ? 'text-yellow-500' : 'text-red-500'
                     }`}>
-                      {data.score !== null ? `${data.score}%` : 'N/A'}
+                      {ranking.averageScore.toFixed(1)}%
                     </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>Quizzes: {ranking.quizzesAttempted}</span>
+                    <span>Streak: {ranking.currentStreak} 🔥</span>
                   </div>
                 </div>
               ))
             ) : (
               <div className="text-center p-6 text-muted-foreground text-sm">
-                {selectedClass ? 'No student data for this class.' : 'Please select a class from the login page.'}
+                {selectedClass ? 'No ranking data for this class yet.' : 'Please select a class from the login page.'}
               </div>
             )}
           </div>
@@ -251,46 +310,62 @@ export default function StudentAnalysisPage() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/30">
-                  <TableHead className="hidden md:table-cell w-14">#</TableHead>
-                  <TableHead>Roll No.</TableHead>
-                  <TableHead>Student Name</TableHead>
-                  <TableHead className="text-center">Score</TableHead>
+                  <TableHead className="w-16">Rank</TableHead>
+                  <TableHead>Student</TableHead>
+                  <TableHead className="text-center">Avg Score</TableHead>
+                  <TableHead className="text-center">Quizzes</TableHead>
+                  <TableHead className="text-center">Streak</TableHead>
                   <TableHead className="text-right">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {performanceData.length > 0 ? (
-                  performanceData.map((data, index) => (
-                    <TableRow key={data.id} className="transition-colors hover:bg-muted/50">
-                      <TableCell className="hidden md:table-cell">
-                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                          <span className="text-xs font-bold text-primary">
-                            {data.name.charAt(0).toUpperCase()}
-                          </span>
+                {rankings.length > 0 ? (
+                  rankings.map((ranking) => (
+                    <TableRow 
+                      key={ranking._id} 
+                      className={`transition-colors hover:bg-muted/50 ${
+                        ranking.classRank <= 3 ? 'bg-yellow-50/50 dark:bg-yellow-900/10' : ''
+                      }`}
+                    >
+                      <TableCell>
+                        <div className="flex items-center justify-center h-8 w-8 rounded-full bg-primary/10">
+                          {getRankBadge(ranking.classRank)}
                         </div>
                       </TableCell>
-                      <TableCell className="font-mono text-xs">{data.rollNo}</TableCell>
-                      <TableCell className="font-medium">{data.name}</TableCell>
+                      <TableCell>
+                        <div>
+                          <p className="font-medium">{ranking.studentId?.name || 'Unknown'}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {ranking.studentId?.rollNumber || ranking.studentId?.email}
+                          </p>
+                        </div>
+                      </TableCell>
                       <TableCell className="text-center">
                         <span className={`font-semibold ${
-                          data.score !== null 
-                            ? data.score >= 60 ? 'text-green-500' : data.score >= 40 ? 'text-yellow-500' : 'text-red-500'
-                            : ''
+                          ranking.averageScore >= 60 ? 'text-green-500' : ranking.averageScore >= 40 ? 'text-yellow-500' : 'text-red-500'
                         }`}>
-                          {data.score !== null ? `${data.score}%` : 'N/A'}
+                          {ranking.averageScore.toFixed(1)}%
                         </span>
                       </TableCell>
+                      <TableCell className="text-center">{ranking.quizzesAttempted}</TableCell>
+                      <TableCell className="text-center">
+                        {ranking.currentStreak > 0 && (
+                          <span className="flex items-center justify-center gap-1">
+                            {ranking.currentStreak} 🔥
+                          </span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right">
-                         <Badge variant={getBadgeVariant(data.status) as any}>
-                          {data.status}
+                        <Badge variant={getBadgeVariant(ranking.averageScore) as any}>
+                          {ranking.averageScore >= 40 ? 'Pass' : 'Fail'}
                         </Badge>
                       </TableCell>
                     </TableRow>
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                      {selectedClass ? 'No student data for this class.' : 'Please select a class from the login page.'}
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      {selectedClass ? 'No ranking data for this class yet.' : 'Please select a class from the login page.'}
                     </TableCell>
                   </TableRow>
                 )}

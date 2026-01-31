@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 
 interface User {
   _id: string;
+  id?: string; // Alias for _id
   name: string;
   email: string;
   role: 'student' | 'professor' | 'admin';
@@ -11,7 +12,23 @@ interface User {
   rollNo?: string;
   batch?: string;
   section?: string;
+  branch?: string;
+  semester?: string;
+  phoneNumber?: string;
+  fatherName?: string;
+  motherName?: string;
+  parentPhoneNumber?: string;
+  address?: string;
+  dateOfBirth?: string;
+  gender?: string;
+  bloodGroup?: string;
   expertise?: string;
+  department?: string;
+  classesTeaching?: Array<{
+    subject: string;
+    batch: string;
+    section: string;
+  }>;
   isApproved: boolean;
 }
 
@@ -20,6 +37,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   isLoading: boolean;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -28,6 +46,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const refreshUser = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    try {
+      const response = await fetch('/api/auth/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const userData = { ...data, id: data._id };
+        setUser(userData);
+        localStorage.setItem('user', JSON.stringify(userData));
+      }
+    } catch (error) {
+      console.error('Failed to refresh user:', error);
+    }
+  };
+
   useEffect(() => {
     // Check if user is logged in on mount
     const token = localStorage.getItem('token');
@@ -35,7 +72,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (token && savedUser) {
       try {
-        setUser(JSON.parse(savedUser));
+        const parsed = JSON.parse(savedUser);
+        setUser({ ...parsed, id: parsed._id || parsed.id });
       } catch (error) {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
@@ -57,9 +95,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await response.json();
 
       if (response.ok) {
-        setUser(data.user);
+        const userData = { ...data.user, id: data.user._id };
+        setUser(userData);
         localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.user));
+        localStorage.setItem('user', JSON.stringify(userData));
         return { success: true };
       } else {
         return { success: false, error: data.error };
@@ -73,10 +112,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('professorClass');
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isLoading }}>
+    <AuthContext.Provider value={{ user, login, logout, isLoading, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

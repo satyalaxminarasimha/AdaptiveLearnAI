@@ -5,7 +5,10 @@ import { createContext, useContext, ReactNode } from 'react';
 import { useAuth } from './auth-context';
 
 export type StudentSession = {
+  batch: string | null;
   section: string | null;
+  branch: string | null;
+  rollNo: string | null;
 };
 
 type SessionContextType = {
@@ -18,9 +21,14 @@ const StudentSessionContext = createContext<SessionContextType | undefined>(unde
 export function StudentSessionProvider({ children }: { children: ReactNode }) {
   const { user, isLoading } = useAuth();
 
-  // Get section from authenticated user's profile
-  const session: StudentSession | null = user?.section 
-    ? { section: user.section } 
+  // Get batch and section from authenticated user's profile
+  const session: StudentSession | null = user 
+    ? { 
+        batch: user.batch || null, 
+        section: user.section || null,
+        branch: ('branch' in user ? (user.branch as string) : null) || null,
+        rollNo: user.rollNo || null
+      } 
     : null;
 
   return (

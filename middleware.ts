@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import jwt from 'jsonwebtoken';
+
+// Edge Runtime compatible JWT verification using jose
+import { jwtVerify } from 'jose';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Public routes
@@ -29,7 +31,8 @@ export function middleware(request: NextRequest) {
     }
 
     try {
-      jwt.verify(token, JWT_SECRET);
+      const secret = new TextEncoder().encode(JWT_SECRET);
+      await jwtVerify(token, secret);
       return NextResponse.next();
     } catch (error) {
       if (pathname.startsWith('/api/')) {

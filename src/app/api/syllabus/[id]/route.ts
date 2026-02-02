@@ -27,7 +27,7 @@ export async function PATCH(
     }
 
     // Find the subject
-    const subjectIndex = syllabus.subjects.findIndex(s => s.name === subjectName);
+    const subjectIndex = syllabus.subjects.findIndex((s: { name: string }) => s.name === subjectName);
     if (subjectIndex === -1) {
       return NextResponse.json({ error: 'Subject not found' }, { status: 404 });
     }
@@ -35,7 +35,7 @@ export async function PATCH(
     // Update topic completion status
     for (const update of topicUpdates) {
       const topicIndex = syllabus.subjects[subjectIndex].topics.findIndex(
-        t => t.topic === update.topic
+        (t: { topic: string }) => t.topic === update.topic
       );
       if (topicIndex !== -1) {
         syllabus.subjects[subjectIndex].topics[topicIndex].isCompleted = update.isCompleted;
@@ -51,7 +51,7 @@ export async function PATCH(
 
     // Recalculate completed topics count
     syllabus.subjects[subjectIndex].completedTopics = syllabus.subjects[subjectIndex].topics.filter(
-      t => t.isCompleted
+      (t: { isCompleted: boolean }) => t.isCompleted
     ).length;
     syllabus.subjects[subjectIndex].totalTopics = syllabus.subjects[subjectIndex].topics.length;
 

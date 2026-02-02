@@ -31,9 +31,9 @@ export async function GET(request: NextRequest) {
 
     // Calculate completion percentages
     const syllabusWithStats = syllabi.map(s => {
-      const subjects = s.subjects.map(subj => {
+      const subjects = s.subjects.map((subj: { topics: { isCompleted: boolean }[]; toObject: () => object }) => {
         const totalTopics = subj.topics.length;
-        const completedTopics = subj.topics.filter(t => t.isCompleted).length;
+        const completedTopics = subj.topics.filter((t: { isCompleted: boolean }) => t.isCompleted).length;
         return {
           ...subj.toObject(),
           totalTopics,
@@ -42,8 +42,8 @@ export async function GET(request: NextRequest) {
         };
       });
 
-      const totalAllTopics = subjects.reduce((sum, s) => sum + s.totalTopics, 0);
-      const completedAllTopics = subjects.reduce((sum, s) => sum + s.completedTopics, 0);
+      const totalAllTopics = subjects.reduce((sum: number, s: { totalTopics: number }) => sum + s.totalTopics, 0);
+      const completedAllTopics = subjects.reduce((sum: number, s: { completedTopics: number }) => sum + s.completedTopics, 0);
 
       return {
         ...s.toObject(),

@@ -1,10 +1,14 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
+export type CompletionStatus = 'not-started' | 'in-progress' | 'completed';
+
 export interface ITopicCompletion {
   topic: string;
-  isCompleted: boolean;
+  status: CompletionStatus;
+  isCompleted: boolean; // kept for backward compatibility
   completedDate?: Date;
   completedBy?: mongoose.Types.ObjectId;
+  notes?: string; // optional notes by professor
 }
 
 export interface ISubject {
@@ -13,6 +17,7 @@ export interface ISubject {
   units?: number;
   totalTopics: number;
   completedTopics: number;
+  inProgressTopics: number;
 }
 
 export interface ISyllabus extends Document {
@@ -29,9 +34,15 @@ export interface ISyllabus extends Document {
 
 const TopicCompletionSchema: Schema = new Schema({
   topic: { type: String, required: true },
-  isCompleted: { type: Boolean, default: false },
+  status: { 
+    type: String, 
+    enum: ['not-started', 'in-progress', 'completed'], 
+    default: 'not-started' 
+  },
+  isCompleted: { type: Boolean, default: false }, // kept for backward compatibility
   completedDate: { type: Date },
   completedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+  notes: { type: String },
 }, { _id: false });
 
 const SubjectSchema: Schema = new Schema({
@@ -40,6 +51,7 @@ const SubjectSchema: Schema = new Schema({
   units: { type: Number },
   totalTopics: { type: Number, default: 0 },
   completedTopics: { type: Number, default: 0 },
+  inProgressTopics: { type: Number, default: 0 },
 });
 
 const SyllabusSchema: Schema = new Schema({

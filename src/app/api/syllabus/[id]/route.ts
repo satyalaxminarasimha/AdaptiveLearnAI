@@ -3,7 +3,9 @@ import dbConnect from '@/lib/mongodb';
 import Syllabus from '@/models/Syllabus';
 import { verifyToken } from '@/lib/auth';
 
-// PATCH - Mark topics as completed
+type TopicStatus = 'not-started' | 'in-progress' | 'completed';
+
+// PATCH - Mark topics as completed or in-progress
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -19,7 +21,7 @@ export async function PATCH(
 
     const body = await request.json();
     const { subjectName, topicUpdates } = body;
-    // topicUpdates: [{ topic: string, isCompleted: boolean }]
+    // topicUpdates: [{ topic: string, status: 'not-started' | 'in-progress' | 'completed', notes?: string }]
 
     const syllabus = await Syllabus.findById(id);
     if (!syllabus) {
@@ -38,20 +40,30 @@ export async function PATCH(
         (t: { topic: string }) => t.topic === update.topic
       );
       if (topicIndex !== -1) {
-        syllabus.subjects[subjectIndex].topics[topicIndex].isCompleted = update.isCompleted;
-        if (update.isCompleted) {
+        const newStatus: TopicStatus = update.status || (update.isCompleted ? 'completed' : 'not-started');
+        syllabus.subjects[subjectIndex].topics[topicIndex].status = newStatus;
+        syllabus.subjects[subjectIndex].topics[topicIndex].isCompleted = newStatus === 'completed';
+        
+        if (update.notes !== undefined) {
+          syllabus.subjects[subjectIndex].topics[topicIndex].notes = update.notes;
+        }
+        
+        if (newStatus === 'completed') {
           syllabus.subjects[subjectIndex].topics[topicIndex].completedDate = new Date();
           syllabus.subjects[subjectIndex].topics[topicIndex].completedBy = payload.userId;
-        } else {
+        } else if (newStatus === 'not-started') {
           syllabus.subjects[subjectIndex].topics[topicIndex].completedDate = undefined;
           syllabus.subjects[subjectIndex].topics[topicIndex].completedBy = undefined;
         }
       }
     }
 
-    // Recalculate completed topics count
+    // Recalculate completed and in-progress topics count
     syllabus.subjects[subjectIndex].completedTopics = syllabus.subjects[subjectIndex].topics.filter(
-      (t: { isCompleted: boolean }) => t.isCompleted
+      (t: { status: TopicStatus }) => t.status === 'completed'
+    ).length;
+    syllabus.subjects[subjectIndex].inProgressTopics = syllabus.subjects[subjectIndex].topics.filter(
+      (t: { status: TopicStatus }) => t.status === 'in-progress'
     ).length;
     syllabus.subjects[subjectIndex].totalTopics = syllabus.subjects[subjectIndex].topics.length;
 

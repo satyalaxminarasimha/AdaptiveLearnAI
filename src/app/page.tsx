@@ -52,7 +52,6 @@ const roles: { icon: React.ElementType; title: Role; description: string }[] = [
 const passwordValidation = new RegExp(
   /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{8,}$/
 );
-const professorEmailValidation = new RegExp(/^[a-zA-Z0-9_.-]+.csm@anits\.edu\.in$/);
 
 
 export default function LoginPage() {
@@ -95,23 +94,6 @@ export default function LoginPage() {
 
     // For professor and student, use API login
     if (selectedRole === 'Professor') {
-      if (!professorEmailValidation.test(email)) {
-        toast({
-          variant: 'destructive',
-          title: 'Invalid Email Format',
-          description: "Professor email must be in the format 'name.csm@anits.edu.in'",
-        });
-        return;
-      }
-      if (!passwordValidation.test(password)) {
-        toast({
-          variant: 'destructive',
-          title: 'Invalid Password Format',
-          description: 'Password must be at least 8 characters and include uppercase, lowercase, number, and special characters.',
-        });
-        return;
-      }
-
       const result = await login(email, password);
       if (result.success) {
         router.push('/dashboard/professor');
@@ -126,41 +108,6 @@ export default function LoginPage() {
     }
 
     if (selectedRole === 'Student') {
-      const studentEmailValidation = /^[a-zA-Z0-9_.-]+\.(\d{2})\.csm@anits\.edu\.in$/;
-      const rollNoValidation = /^A(\d{2})\d{9}$/;
-
-      const emailMatch = email.match(studentEmailValidation);
-      if (!emailMatch) {
-        toast({
-          variant: 'destructive',
-          title: 'Invalid Email Format',
-          description: "Student email must be in the format 'name.YY.csm@anits.edu.in'",
-        });
-        return;
-      }
-
-      const rollNoMatch = password.match(rollNoValidation);
-      if (!rollNoMatch) {
-        toast({
-          variant: 'destructive',
-          title: 'Invalid Password',
-          description: "Password must be your Roll Number in the format 'A<YY><9 digits>'.",
-        });
-        return;
-      }
-
-      const yearFromEmail = emailMatch[1];
-      const yearFromRollNo = rollNoMatch[1];
-
-      if (yearFromEmail !== yearFromRollNo) {
-        toast({
-          variant: 'destructive',
-          title: 'Login Error',
-          description: 'The batch year in your email does not match the year in your Roll Number.',
-        });
-        return;
-      }
-
       const result = await login(email, password);
       if (result.success) {
         router.push('/dashboard/student');
@@ -245,7 +192,7 @@ export default function LoginPage() {
                 <form className="space-y-4" onSubmit={handleSignIn}>
                   <div className="space-y-2">
                     <Label htmlFor="email" className="text-sm">Email</Label>
-                    <Input id="email" type="email" placeholder="you@university.edu" required value={email} onChange={(e) => setEmail(e.target.value)} />
+                    <Input id="email" type="text" placeholder="Enter your email" required value={email} onChange={(e) => setEmail(e.target.value)} />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="password" className="text-sm">Password</Label>

@@ -1,14 +1,14 @@
 
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { professorRecentActivity, professorStats, professorUser, allStudents, allQuizPerformances, quizzesBySubject } from '@/lib/mock-data';
-import { Book, FileText, Search, Users, Clock, CheckCircle, ListTodo, UserCheck, TrendingUp, Sparkles } from 'lucide-react';
+import { Book, FileText, Search, Users, Clock, CheckCircle, ListTodo, UserCheck, TrendingUp, Sparkles, AlertCircle } from 'lucide-react';
 import { useProfessorSession } from '@/context/professor-session-context';
+import { useAuth } from '@/context/auth-context';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
@@ -78,40 +78,88 @@ function ProfessorDashboardSkeleton() {
 
 export default function ProfessorDashboardPage() {
   const { selectedClass, isLoading } = useProfessorSession();
+  const { user } = useAuth();
+  const [classStats, setClassStats] = useState({
+    activeStudents: 0,
+    quizzesCreated: 0,
+    totalTopics: 0,
+    topicsCovered: 0,
+    topicsPending: 0,
+  });
+  const [dataLoading, setDataLoading] = useState(true);
 
-  const classStats = useMemo(() => {
-    if (!selectedClass) return {
-        activeStudents: 0,
-        quizzesCreated: 0,
-        totalAttempts: 0,
+  useEffect(() => {
+    const fetchStats = async () => {
+      if (!selectedClass) {
+        setDataLoading(false);
+        return;
+      }
+
+      try {
+        const token = localStorage.getItem('token');
+        const headers = { 'Authorization': `Bearer ${token}` };
+
+        // Fetch students count
+        const studentsRes = await fetch(`/api/students?batch=${selectedClass.batch}&section=${selectedClass.section}`, { headers });
+        let studentsCount = 0;
+        if (studentsRes.ok) {
+          const students = await studentsRes.json();
+          studentsCount = students.length;
+        }
+
+        // Fetch quizzes count
+        const quizzesRes = await fetch(`/api/quizzes?subject=${encodeURIComponent(selectedClass.subject)}`, { headers });
+        let quizzesCount = 0;
+        if (quizzesRes.ok) {
+          const quizzes = await quizzesRes.json();
+          quizzesCount = quizzes.length;
+        }
+
+        // Fetch syllabus progress
+        const syllabusRes = await fetch(`/api/syllabus?batch=${selectedClass.batch}&section=${selectedClass.section}`, { headers });
+        let totalTopics = 0;
+        let topicsCovered = 0;
+        if (syllabusRes.ok) {
+          const syllabi = await syllabusRes.json();
+          if (syllabi.length > 0) {
+            const syllabus = syllabi[0];
+            const subject = syllabus.subjects?.find((s: any) => s.name === selectedClass.subject);
+            if (subject) {
+              totalTopics = subject.totalTopics || 0;
+              topicsCovered = subject.completedTopics || 0;
+            }
+          }
+        }
+
+        setClassStats({
+          activeStudents: studentsCount,
+          quizzesCreated: quizzesCount,
+          totalTopics,
+          topicsCovered,
+          topicsPending: Math.max(0, totalTopics - topicsCovered),
+        });
+      } catch (err) {
+        console.error('Error fetching professor stats:', err);
+      } finally {
+        setDataLoading(false);
+      }
     };
 
-    const studentsInClass = allStudents.filter(s => s.batch === selectedClass.batch && s.section === selectedClass.section);
-    const quizzesForSubject = quizzesBySubject[selectedClass.subject as keyof typeof quizzesBySubject] || [];
-    
-    const totalAttempts = allQuizPerformances.filter(p => {
-        const student = allStudents.find(s => s.id === p.studentId);
-        return student && student.batch === selectedClass.batch && student.section === selectedClass.section && quizzesForSubject.includes(p.quiz);
-    }).length;
-
-    return {
-        activeStudents: studentsInClass.length,
-        quizzesCreated: quizzesForSubject.length,
-        totalAttempts: totalAttempts,
-    };
+    fetchStats();
   }, [selectedClass]);
 
   const stats = [
-    { title: 'Active Students', value: classStats.activeStudents, icon: 'Users', change: '+3' },
-    { title: 'Quizzes Created', value: classStats.quizzesCreated, icon: 'FileText', change: '+2' },
-    { title: 'Total Topics', value: professorStats[1].value, icon: 'Book', change: '' },
-    { title: 'Topics Covered', value: professorStats[2].value, icon: 'CheckCircle', change: '' },
-    { title: 'Topics Pending', value: professorStats[3].value, icon: 'ListTodo', change: '' },
+    { title: 'Active Students', value: classStats.activeStudents, icon: 'Users', change: '' },
+    { title: 'Quizzes Created', value: classStats.quizzesCreated, icon: 'FileText', change: '' },
+    { title: 'Total Topics', value: classStats.totalTopics, icon: 'Book', change: '' },
+    { title: 'Topics Covered', value: classStats.topicsCovered, icon: 'CheckCircle', change: '' },
+    { title: 'Topics Pending', value: classStats.topicsPending, icon: 'ListTodo', change: '' },
   ];
 
   const greeting = new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 18 ? 'Good afternoon' : 'Good evening';
+  const displayName = user?.name?.split(' ')[0] || 'Professor';
 
-  if (isLoading) {
+  if (isLoading || dataLoading) {
       return <ProfessorDashboardSkeleton />
   }
 
@@ -120,7 +168,7 @@ export default function ProfessorDashboardPage() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{greeting}, {professorUser.name.split(' ')[0]}!</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{greeting}, {displayName}!</h1>
               <Sparkles className="h-5 w-5 sm:h-6 sm:w-6 text-yellow-500 animate-pulse" />
             </div>
             <p className="text-sm sm:text-base text-muted-foreground">
@@ -203,36 +251,14 @@ export default function ProfessorDashboardPage() {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {professorRecentActivity && professorRecentActivity.length > 0 ? (
-                            professorRecentActivity.map((activity, index) => (
-                            <TableRow 
-                              key={activity.id}
-                              className="group cursor-pointer animate-fade-in"
-                              style={{ animationDelay: `${(index + 6) * 50}ms` }}
-                            >
-                                <TableCell className="font-medium">
-                                    <div className="flex items-center gap-2">
-                                      <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-                                      {activity.topic}
-                                    </div>
-                                </TableCell>
-                                <TableCell className="text-right text-muted-foreground">
-                                  <Badge variant="outline" className="font-normal">
-                                    {activity.date}
-                                  </Badge>
-                                </TableCell>
-                            </TableRow>
-                            ))
-                        ) : (
-                           <TableRow>
-                              <TableCell colSpan={2} className="h-24 text-center">
-                                <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
-                                  <Clock className="h-8 w-8 opacity-50" />
-                                  <span>No recent activity.</span>
-                                </div>
-                              </TableCell>
-                           </TableRow>
-                        )}
+                        <TableRow>
+                           <TableCell colSpan={2} className="h-24 text-center">
+                             <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                               <Clock className="h-8 w-8 opacity-50" />
+                               <span>No recent activity.</span>
+                             </div>
+                           </TableCell>
+                        </TableRow>
                     </TableBody>
                 </Table>
               </div>

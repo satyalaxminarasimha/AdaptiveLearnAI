@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Accordion,
   AccordionContent,
@@ -12,9 +12,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Loader, Siren, Sparkles, AlertTriangle, BookOpen, Lightbulb, CheckCircle2, Target } from 'lucide-react';
 import { aiChatTutor, type AIChatTutorOutput } from '@/ai/flows/ai-chat-tutor';
-import { studentFullQuizHistory, detailedSyllabus } from '@/lib/mock-data';
+import { useAuth } from '@/context/auth-context';
 
 type WeakTopic = {
   subject: string;
@@ -24,15 +25,58 @@ type WeakTopic = {
 };
 
 export default function ReviewsPage() {
+  const { user } = useAuth();
+  const [quizHistory, setQuizHistory] = useState<any[]>([]);
+  const [syllabusData, setSyllabusData] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [analysis, setAnalysis] = useState<Record<string, AIChatTutorOutput | null>>({});
   const [loading, setLoading] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const headers = { 'Authorization': `Bearer ${token}` };
+
+        // Fetch quiz attempts
+        const attemptsRes = await fetch('/api/quiz-attempts', { headers });
+        if (attemptsRes.ok) {
+          const attempts = await attemptsRes.json();
+          setQuizHistory(attempts.map((a: any) => ({
+            subject: a.quiz?.subject || 'Unknown',
+            topic: a.quiz?.topic || a.quiz?.title || 'Unknown',
+            score: a.score || 0,
+            totalQuestions: a.totalQuestions || a.quiz?.questions?.length || 10
+          })));
+        }
+
+        // Fetch syllabus if user has batch/section
+        if (user?.batch && user?.section) {
+          const syllabusRes = await fetch(
+            `/api/syllabus?batch=${user.batch}&section=${user.section}`,
+            { headers }
+          );
+          if (syllabusRes.ok) {
+            const syllabus = await syllabusRes.json();
+            setSyllabusData(syllabus);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching data:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [user]);
+
   const weakTopics = useMemo(() => {
-    return studentFullQuizHistory.filter(
+    return quizHistory.filter(
       (item) => (item.score / item.totalQuestions) * 100 < 60
     );
-  }, []);
+  }, [quizHistory]);
 
   const handleAnalysis = async (topic: WeakTopic) => {
     setLoading((prev) => ({ ...prev, [topic.topic]: true }));
@@ -41,8 +85,8 @@ export default function ReviewsPage() {
     try {
       const result = await aiChatTutor({
         question: `I'm struggling with the topic "${topic.topic}" in my ${topic.subject} course. My score was ${topic.score}/${topic.totalQuestions}. Can you explain the core concepts to me in a simple, easy-to-understand way and provide some actionable recommendations on how I can improve? Please be encouraging.`,
-        studentQuizHistory: JSON.stringify(studentFullQuizHistory, null, 2),
-        subjectSyllabus: JSON.stringify(detailedSyllabus, null, 2),
+        studentQuizHistory: JSON.stringify(quizHistory, null, 2),
+        subjectSyllabus: JSON.stringify(syllabusData, null, 2),
         difficultyLevel: 'medium',
         weakAreas: topic.topic,
       });
@@ -55,6 +99,24 @@ export default function ReviewsPage() {
       setLoading((prev) => ({ ...prev, [topic.topic]: false }));
     }
   };
+
+  if (isLoading) {
+    return (
+      <main className="flex-1 space-y-6 p-4 md:p-6">
+        <div className="space-y-1">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-4 w-72" />
+        </div>
+        <Card>
+          <CardContent className="pt-6 space-y-4">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-20 w-full" />
+            ))}
+          </CardContent>
+        </Card>
+      </main>
+    );
+  }
 
   const getScoreColor = (score: number, total: number) => {
     const percentage = (score / total) * 100;

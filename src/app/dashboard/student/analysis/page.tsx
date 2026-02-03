@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, XAxis, YAxis } from 'recharts';
 import {
   Select,
@@ -18,78 +18,148 @@ import {
   ChartLegend,
   ChartLegendContent,
 } from '@/components/ui/chart';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import {
-  studentQuizAnalysisStats,
-  studentQuizAnalysisChartConfig,
-  subjectPerformanceData,
-  subjectPerformanceChartConfig,
-  studentAnswerAnalysisBySubject,
-  studentAnswerAnalysisChartConfig,
-  studentUser,
-  allStudents,
-  quizzesBySubject,
-  allQuizPerformances,
-} from '@/lib/mock-data';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useStudentSession } from '@/context/student-session-context';
 import { Separator } from '@/components/ui/separator';
-import { BarChart3, PieChart as PieChartIcon, Trophy, Medal, Award, TrendingUp } from 'lucide-react';
+import { BarChart3, PieChart as PieChartIcon, Trophy, Medal, TrendingUp, AlertCircle } from 'lucide-react';
+
+// Chart configs
+const studentQuizAnalysisChartConfig = {
+  score: { label: 'Score', color: 'hsl(var(--primary))' },
+  average: { label: 'Class Average', color: 'hsl(var(--muted-foreground))' },
+};
+
+const subjectPerformanceChartConfig = {
+  Mathematics: { label: 'Mathematics', color: '#4f46e5' },
+  Physics: { label: 'Physics', color: '#10b981' },
+  'Computer Science': { label: 'Computer Science', color: '#f59e0b' },
+};
+
+const studentAnswerAnalysisChartConfig = {
+  correct: { label: 'Correct', color: 'hsl(142 76% 36%)' },
+  incorrect: { label: 'Incorrect', color: 'hsl(0 84% 60%)' },
+};
 
 export default function StudentAnalysisPage() {
   const [selectedSubject, setSelectedSubject] = useState<string>('');
   const [selectedQuiz, setSelectedQuiz] = useState<string>('');
   const { session } = useStudentSession();
+  
+  const [isLoading, setIsLoading] = useState(true);
+  const [quizAttempts, setQuizAttempts] = useState<any[]>([]);
+  const [subjects, setSubjects] = useState<string[]>([]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const headers = { 'Authorization': `Bearer ${token}` };
+
+        // Fetch quiz attempts
+        const attemptsRes = await fetch('/api/quiz-attempts', { headers });
+        if (attemptsRes.ok) {
+          const attempts = await attemptsRes.json();
+          setQuizAttempts(attempts);
+          
+          // Extract unique subjects
+          const uniqueSubjects = [...new Set(attempts.map((a: any) => a.quiz?.subject).filter(Boolean))];
+          setSubjects(uniqueSubjects as string[]);
+        }
+      } catch (err) {
+        console.error('Error fetching analysis data:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
 
   const analysisData = useMemo(() => {
-    if (!selectedSubject) return [];
-    return studentAnswerAnalysisBySubject[selectedSubject as keyof typeof studentAnswerAnalysisBySubject];
-  }, [selectedSubject]);
+    if (!selectedSubject || quizAttempts.length === 0) return [];
+    const subjectAttempts = quizAttempts.filter(a => a.quiz?.subject === selectedSubject);
+    const totalCorrect = subjectAttempts.reduce((sum, a) => sum + (a.score || 0), 0);
+    const totalQuestions = subjectAttempts.reduce((sum, a) => sum + (a.totalQuestions || 10), 0);
+    return [
+      { name: 'Correct', answers: totalCorrect, fill: 'hsl(142 76% 36%)' },
+      { name: 'Incorrect', answers: totalQuestions - totalCorrect, fill: 'hsl(0 84% 60%)' },
+    ];
+  }, [selectedSubject, quizAttempts]);
+
+  // Get quizzes by subject for real data
+  const subjectQuizzes = useMemo(() => {
+    const result: Record<string, string[]> = {};
+    quizAttempts.forEach(a => {
+      const subject = a.quiz?.subject;
+      const title = a.quiz?.title;
+      if (subject && title) {
+        if (!result[subject]) result[subject] = [];
+        if (!result[subject].includes(title)) result[subject].push(title);
+      }
+    });
+    return result;
+  }, [quizAttempts]);
 
   const availableQuizzes = useMemo(() => {
     if (!selectedSubject) return [];
-    return quizzesBySubject[selectedSubject as keyof typeof quizzesBySubject] || [];
-  }, [selectedSubject]);
+    return subjectQuizzes[selectedSubject] || [];
+  }, [selectedSubject, subjectQuizzes]);
 
   const handleSubjectChange = (subject: string) => {
     setSelectedSubject(subject);
     setSelectedQuiz('');
   };
-  
-  const studentPerformanceListData = useMemo(() => {
-    if (!selectedQuiz || !session?.section) return [];
 
-    const classmates = allStudents.filter(
-      (s) => s.batch === studentUser.batch && s.section === session.section
-    ).sort((a, b) => a.rollNo.localeCompare(b.rollNo));
+  if (isLoading) {
+    return (
+      <main className="flex-1 space-y-6 p-4 md:p-6">
+        <Skeleton className="h-8 w-48" />
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-32" />
+          ))}
+        </div>
+      </main>
+    );
+  }
 
-    return classmates.map(student => {
-      const performance = allQuizPerformances.find(p => p.studentId === student.id && p.quiz === selectedQuiz);
-      return {
-        ...student,
-        score: performance?.score ?? null,
-        status: performance?.status ?? 'Not Attempted',
-      };
-    });
-  }, [selectedQuiz, session]);
+  if (quizAttempts.length === 0) {
+    return (
+      <main className="flex-1 space-y-6 p-4 md:p-6 animate-fade-in">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Quiz Analysis</h1>
+        <Card>
+          <CardContent className="pt-12 pb-12 text-center">
+            <AlertCircle className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">No Quiz Data Available</h3>
+            <p className="text-muted-foreground max-w-md mx-auto">
+              You haven't attempted any quizzes yet. Complete some quizzes to see your performance analysis here.
+            </p>
+          </CardContent>
+        </Card>
+      </main>
+    );
+  }
 
-  const getBadgeVariant = (status: string) => {
-    switch (status) {
-      case 'Pass':
-        return 'default';
-      case 'Fail':
-        return 'destructive';
-      default:
-        return 'secondary';
-    }
-  };
+  // Calculate stats from real data
+  const totalAttempts = quizAttempts.length;
+  const avgScore = quizAttempts.length > 0 
+    ? Math.round(quizAttempts.reduce((sum, a) => sum + ((a.score / (a.totalQuestions || 10)) * 100), 0) / quizAttempts.length)
+    : 0;
+
+  // Pie chart data for quiz completion
+  const quizCompletionData = [
+    { name: 'Completed', value: totalAttempts, fill: 'hsl(var(--chart-1))' },
+    { name: 'Remaining', value: Math.max(0, 10 - totalAttempts), fill: 'hsl(var(--chart-2))' },
+  ];
+
+  // Subject performance from real data
+  const subjectPerformanceData = subjects.map(subject => {
+    const subjectAttempts = quizAttempts.filter(a => a.quiz?.subject === subject);
+    const avg = subjectAttempts.length > 0
+      ? Math.round(subjectAttempts.reduce((sum, a) => sum + ((a.score / (a.totalQuestions || 10)) * 100), 0) / subjectAttempts.length)
+      : 0;
+    return { name: subject, value: avg };
+  });
 
 
   return (
@@ -125,8 +195,8 @@ export default function StudentAnalysisPage() {
                   cursor={false}
                   content={<ChartTooltipContent hideLabel formatter={(value) => `${value} Quizzes`}/>}
                 />
-                <Pie data={studentQuizAnalysisStats} dataKey="value" nameKey="name" innerRadius={50} strokeWidth={5}>
-                  {studentQuizAnalysisStats.map((entry) => (
+                <Pie data={quizCompletionData} dataKey="value" nameKey="name" innerRadius={50} strokeWidth={5}>
+                  {quizCompletionData.map((entry) => (
                     <Cell key={entry.name} fill={entry.fill} />
                   ))}
                 </Pie>
@@ -188,7 +258,7 @@ export default function StudentAnalysisPage() {
                       <SelectValue placeholder="Select a subject" />
                       </SelectTrigger>
                       <SelectContent>
-                      {Object.keys(studentAnswerAnalysisBySubject).map(subject => (
+                      {subjects.map(subject => (
                           <SelectItem key={subject} value={subject}>{subject}</SelectItem>
                       ))}
                       </SelectContent>
@@ -248,102 +318,11 @@ export default function StudentAnalysisPage() {
                     <div className="space-y-3 sm:space-y-4">
                       <h3 className="text-base sm:text-lg font-semibold text-center sm:text-left flex items-center justify-center sm:justify-start gap-2">
                         <Medal className="h-5 w-5 text-orange-500" />
-                        Student Scores: <span className="text-primary">{selectedQuiz}</span>
+                        Selected Quiz: <span className="text-primary">{selectedQuiz}</span>
                       </h3>
-                      
-                      {/* Mobile card view */}
-                      <div className="sm:hidden space-y-3">
-                        {studentPerformanceListData.filter((data) => data.status !== 'Not Attempted').length > 0 ? (
-                          studentPerformanceListData
-                            .filter((data) => data.status !== 'Not Attempted')
-                            .sort((a, b) => (b.score ?? -1) - (a.score ?? -1))
-                            .map((data, index) => (
-                              <div 
-                                key={data.id} 
-                                className={`p-3 rounded-lg border transition-all duration-200 ${
-                                  data.id === studentUser.id 
-                                    ? 'bg-primary/10 border-primary/20' 
-                                    : 'bg-card hover:bg-muted/50'
-                                }`}
-                              >
-                                <div className="flex items-center justify-between mb-2">
-                                  <div className="flex items-center gap-2">
-                                    <span className="flex items-center justify-center h-6 w-6 rounded-full bg-primary/10 text-primary text-xs font-bold">
-                                      {index === 0 ? <Trophy className="h-3 w-3" /> : 
-                                       index === 1 ? <Medal className="h-3 w-3" /> : 
-                                       index === 2 ? <Award className="h-3 w-3" /> : index + 1}
-                                    </span>
-                                    <span className="font-medium text-sm">{data.name}</span>
-                                  </div>
-                                  <Badge variant={getBadgeVariant(data.status) as any} className="text-xs">
-                                    {data.status}
-                                  </Badge>
-                                </div>
-                                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                                  <span className="font-mono">{data.rollNo}</span>
-                                  <span className="font-semibold text-foreground">
-                                    {data.score !== null ? `${data.score}%` : 'N/A'}
-                                  </span>
-                                </div>
-                              </div>
-                            ))
-                        ) : (
-                          <div className="text-center p-6 text-muted-foreground text-sm">
-                            No one has attempted this quiz yet.
-                          </div>
-                        )}
-                      </div>
-                      
-                      {/* Desktop table view */}
-                      <div className="hidden sm:block rounded-md border overflow-hidden">
-                        <Table>
-                          <TableHeader>
-                            <TableRow className="bg-muted/30">
-                              <TableHead className="text-center w-16">Rank</TableHead>
-                              <TableHead className="hidden md:table-cell">Roll No.</TableHead>
-                              <TableHead>Student Name</TableHead>
-                              <TableHead className="text-center">Score</TableHead>
-                              <TableHead className="text-right">Status</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {studentPerformanceListData.filter((data) => data.status !== 'Not Attempted').length > 0 ? (
-                              studentPerformanceListData
-                                .filter((data) => data.status !== 'Not Attempted')
-                                .sort((a, b) => (b.score ?? -1) - (a.score ?? -1))
-                                .map((data, index) => (
-                                  <TableRow 
-                                    key={data.id} 
-                                    className={`transition-colors ${data.id === studentUser.id ? 'bg-primary/10' : 'hover:bg-muted/50'}`}
-                                  >
-                                    <TableCell className="text-center font-medium">
-                                      <span className="flex items-center justify-center">
-                                        {index === 0 ? <Trophy className="h-4 w-4 text-yellow-500" /> : 
-                                         index === 1 ? <Medal className="h-4 w-4 text-gray-400" /> : 
-                                         index === 2 ? <Award className="h-4 w-4 text-amber-600" /> : index + 1}
-                                      </span>
-                                    </TableCell>
-                                    <TableCell className="hidden md:table-cell font-mono text-xs">{data.rollNo}</TableCell>
-                                    <TableCell className="font-medium">{data.name}</TableCell>
-                                    <TableCell className="text-center font-semibold">
-                                      {data.score !== null ? `${data.score}%` : 'N/A'}
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                      <Badge variant={getBadgeVariant(data.status) as any}>
-                                        {data.status}
-                                      </Badge>
-                                    </TableCell>
-                                  </TableRow>
-                                ))
-                            ) : (
-                              <TableRow>
-                                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                                  No one has attempted this quiz yet.
-                                </TableCell>
-                              </TableRow>
-                            )}
-                          </TableBody>
-                        </Table>
+                      <div className="text-center p-6 text-muted-foreground text-sm bg-muted/30 rounded-lg">
+                        <Trophy className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                        <p>Quiz performance details will appear here based on your attempts.</p>
                       </div>
                     </div>
                   </>

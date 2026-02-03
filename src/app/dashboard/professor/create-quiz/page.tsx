@@ -1,9 +1,9 @@
 
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { format } from 'date-fns';
-import { Calendar as CalendarIcon, PlusCircle, BookOpen, Sparkles } from 'lucide-react';
+import { Calendar as CalendarIcon, PlusCircle, BookOpen, Sparkles, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,7 +13,6 @@ import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { detailedSyllabus } from '@/lib/mock-data';
 import { useProfessorSession } from '@/context/professor-session-context';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -22,22 +21,44 @@ export default function CreateQuizPage() {
   const [selectedTopic, setSelectedTopic] = useState<string>('');
   const [difficulty, setDifficulty] = useState<string>('');
   const { selectedClass, isLoading } = useProfessorSession();
+  const [topicsForSubject, setTopicsForSubject] = useState<string[]>([]);
+  const [topicsLoading, setTopicsLoading] = useState(true);
 
-  const topicsForSubject = useMemo(() => {
-    if (!selectedClass) return [];
-    
-    for (const year of Object.values(detailedSyllabus)) {
-        for (const semester of Object.values(year)) {
-            const subject = semester.find(s => s.name === selectedClass.subject);
-            if (subject) {
-                return subject.topics;
+  useEffect(() => {
+    const fetchTopics = async () => {
+      if (!selectedClass) {
+        setTopicsLoading(false);
+        return;
+      }
+
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(
+          `/api/syllabus?batch=${selectedClass.batch}&section=${selectedClass.section}`,
+          { headers: { 'Authorization': `Bearer ${token}` } }
+        );
+        
+        if (response.ok) {
+          const syllabi = await response.json();
+          if (syllabi.length > 0) {
+            const syllabus = syllabi[0];
+            const subject = syllabus.subjects?.find((s: any) => s.name === selectedClass.subject);
+            if (subject && subject.topics) {
+              setTopicsForSubject(subject.topics.map((t: any) => t.topic || t));
             }
+          }
         }
-    }
-    return [];
+      } catch (err) {
+        console.error('Error fetching topics:', err);
+      } finally {
+        setTopicsLoading(false);
+      }
+    };
+
+    fetchTopics();
   }, [selectedClass]);
 
-  if (isLoading) {
+  if (isLoading || topicsLoading) {
     return (
         <main className="flex-1 space-y-4 sm:space-y-6 p-3 sm:p-4 md:p-6">
             <Card className="max-w-4xl mx-auto animate-pulse">

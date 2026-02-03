@@ -24,7 +24,6 @@ import {
   BookOpen,
   Briefcase
 } from 'lucide-react';
-import { professorUser } from '@/lib/mock-data';
 import { useProfessorSession } from '@/context/professor-session-context';
 import { useAuth } from '@/context/auth-context';
 
@@ -32,8 +31,23 @@ export default function ProfessorProfilePage() {
   const { selectedClass } = useProfessorSession();
   const { user } = useAuth();
   
-  // Use actual logged-in user or fallback to mock
-  const currentUser = user || professorUser;
+  // Use actual logged-in user only - no mock data
+  const currentUser = user;
+
+  // Show empty state if no user
+  if (!currentUser) {
+    return (
+      <main className="flex-1 space-y-6 p-4 md:p-6">
+        <Card>
+          <CardContent className="pt-12 pb-12 text-center">
+            <AlertCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <p className="text-muted-foreground">Please log in to view your profile.</p>
+          </CardContent>
+        </Card>
+      </main>
+    );
+  }
+
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);

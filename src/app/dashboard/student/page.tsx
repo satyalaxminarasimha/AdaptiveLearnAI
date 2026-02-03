@@ -1,7 +1,7 @@
 
 'use client';
 
-import { Clock, BookCopy, FileCheck, ArrowRight, Sparkles } from 'lucide-react';
+import { Clock, BookCopy, FileCheck, ArrowRight, Sparkles, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -20,10 +20,11 @@ import {
 } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { studentStats, upcomingQuizzes, studentUser as user, weeklyProgressData } from '@/lib/mock-data';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/context/auth-context';
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
+import { useStudentStats } from '@/hooks/use-student-stats';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,6 +45,7 @@ const progressColors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-oran
 export default function StudentDashboardPage() {
   const [isClient, setIsClient] = useState(false);
   const { user: authUser } = useAuth();
+  const { stats, quizzes, subjectProgress, isLoading } = useStudentStats();
 
   useEffect(() => {
     setIsClient(true);
@@ -53,8 +55,22 @@ export default function StudentDashboardPage() {
     return null;
   }
 
-  const displayUser = authUser || user;
+  const displayUser = authUser;
   const greeting = new Date().getHours() < 12 ? 'Good Morning' : new Date().getHours() < 18 ? 'Good Afternoon' : 'Good Evening';
+
+  // Show empty state if no user is logged in
+  if (!displayUser) {
+    return (
+      <main className="flex-1 flex items-center justify-center p-6">
+        <Card className="max-w-md">
+          <CardContent className="pt-6 text-center">
+            <AlertCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <p className="text-muted-foreground">Please log in to view your dashboard.</p>
+          </CardContent>
+        </Card>
+      </main>
+    );
+  }
   
   return (
     <main className="flex-1 space-y-4 sm:space-y-6 p-3 sm:p-4 md:p-6 animate-fade-in">
@@ -72,62 +88,92 @@ export default function StudentDashboardPage() {
 
       <section className="stagger-children">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-          {studentStats.map((stat, index) => {
-            const Icon = iconMap[stat.icon];
-            const colors = colorMap[stat.icon];
-            return (
-              <Card 
-                key={stat.title} 
-                className="group relative overflow-hidden animate-fade-in"
-                style={{ animationDelay: `${index * 100}ms` }}
-              >
-                <div className={cn(
-                  "absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity duration-300 bg-gradient-to-br",
-                  colors.icon
-                )} />
-                <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-                  <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">{stat.title}</CardTitle>
-                  {Icon && (
-                    <div className={cn(
-                      "p-1.5 sm:p-2 rounded-lg bg-gradient-to-br text-white transition-transform group-hover:scale-110",
-                      colors.icon
-                    )}>
-                      <Icon className="h-3 w-3 sm:h-4 sm:w-4" />
-                    </div>
-                  )}
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <div className="text-2xl sm:text-3xl font-bold">{stat.value}</div>
-                </CardContent>
-              </Card>
-            );
-          })}
+          {isLoading ? (
+            <>
+              {[1, 2, 3].map((i) => (
+                <Card key={i}>
+                  <CardHeader className="pb-2">
+                    <Skeleton className="h-4 w-24" />
+                  </CardHeader>
+                  <CardContent>
+                    <Skeleton className="h-8 w-16" />
+                  </CardContent>
+                </Card>
+              ))}
+            </>
+          ) : (
+            stats.map((stat, index) => {
+              const Icon = iconMap[stat.icon];
+              const colors = colorMap[stat.icon];
+              return (
+                <Card 
+                  key={stat.title} 
+                  className="group relative overflow-hidden animate-fade-in"
+                  style={{ animationDelay: `${index * 100}ms` }}
+                >
+                  <div className={cn(
+                    "absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity duration-300 bg-gradient-to-br",
+                    colors.icon
+                  )} />
+                  <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+                    <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">{stat.title}</CardTitle>
+                    {Icon && (
+                      <div className={cn(
+                        "p-1.5 sm:p-2 rounded-lg bg-gradient-to-br text-white transition-transform group-hover:scale-110",
+                        colors.icon
+                      )}>
+                        <Icon className="h-3 w-3 sm:h-4 sm:w-4" />
+                      </div>
+                    )}
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <div className="text-2xl sm:text-3xl font-bold">{stat.value}</div>
+                  </CardContent>
+                </Card>
+              );
+            })
+          )}
         </div>
       </section>
 
       <section className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">
         <Card className="animate-fade-in" style={{ animationDelay: '300ms' }}>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base sm:text-lg">Weekly Progress</CardTitle>
-            <CardDescription className="text-xs sm:text-sm">Your progress in different subjects this week.</CardDescription>
+            <CardTitle className="text-base sm:text-lg">Subject Progress</CardTitle>
+            <CardDescription className="text-xs sm:text-sm">Your progress in different subjects.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 sm:space-y-5">
-            {weeklyProgressData.map((item, index) => (
+            {isLoading ? (
+              <div className="space-y-4">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="space-y-2">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-2.5 w-full" />
+                  </div>
+                ))}
+              </div>
+            ) : subjectProgress.length > 0 ? (
+              subjectProgress.map((item, index) => (
                 <div key={item.subject} className="space-y-2 group">
-                    <div className="flex justify-between items-center">
-                        <span className="text-xs sm:text-sm font-medium">{item.subject}</span>
-                        <Badge variant="secondary" className="text-[10px] sm:text-xs">
-                          {item.progress}%
-                        </Badge>
-                    </div>
-                    <div className="relative">
-                      <Progress 
-                        value={item.progress} 
-                        className="h-2 sm:h-2.5 transition-all duration-300 group-hover:h-3"
-                      />
-                    </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs sm:text-sm font-medium">{item.subject}</span>
+                    <Badge variant="secondary" className="text-[10px] sm:text-xs">
+                      {item.progress}%
+                    </Badge>
+                  </div>
+                  <div className="relative">
+                    <Progress 
+                      value={item.progress} 
+                      className="h-2 sm:h-2.5 transition-all duration-300 group-hover:h-3"
+                    />
+                  </div>
                 </div>
-            ))}
+              ))
+            ) : (
+              <div className="text-center py-4 text-muted-foreground text-sm">
+                No syllabus progress data available yet.
+              </div>
+            )}
           </CardContent>
         </Card>
         
@@ -135,56 +181,68 @@ export default function StudentDashboardPage() {
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-base sm:text-lg">Upcoming Quizzes</CardTitle>
-                  <CardDescription className="text-xs sm:text-sm">Stay prepared for your upcoming assessments.</CardDescription>
+                  <CardTitle className="text-base sm:text-lg">Available Quizzes</CardTitle>
+                  <CardDescription className="text-xs sm:text-sm">Quizzes you can attempt.</CardDescription>
                 </div>
                 <Badge className="bg-primary/10 text-primary hover:bg-primary/20">
-                  {upcomingQuizzes.length} pending
+                  {quizzes.length} available
                 </Badge>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="rounded-lg border overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/50">
-                      <TableHead className="font-semibold">Quiz</TableHead>
-                      <TableHead className="hidden sm:table-cell font-semibold">Subject</TableHead>
-                      <TableHead className="text-right font-semibold">Action</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {upcomingQuizzes.map((quiz, index) => (
-                      <TableRow 
-                        key={quiz.id} 
-                        className="group cursor-pointer animate-fade-in"
-                        style={{ animationDelay: `${(index + 5) * 50}ms` }}
-                      >
-                        <TableCell>
-                          <div className="flex flex-col">
-                            <span className="font-medium">{quiz.title}</span>
-                            <span className="text-xs text-muted-foreground sm:hidden">{quiz.subject}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="hidden sm:table-cell">
-                          <Badge variant="outline">{quiz.subject}</Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            className="group/btn transition-all hover:bg-primary hover:text-primary-foreground"
-                          >
-                            <span className="hidden sm:inline">Start Quiz</span>
-                            <span className="sm:hidden">Start</span>
-                            <ArrowRight className="ml-1 h-3 w-3 transition-transform group-hover/btn:translate-x-1" />
-                          </Button>
-                        </TableCell>
+              {isLoading ? (
+                <div className="space-y-2">
+                  {[1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-12 w-full" />
+                  ))}
+                </div>
+              ) : quizzes.length > 0 ? (
+                <div className="rounded-lg border overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/50">
+                        <TableHead className="font-semibold">Quiz</TableHead>
+                        <TableHead className="hidden sm:table-cell font-semibold">Subject</TableHead>
+                        <TableHead className="text-right font-semibold">Action</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                    </TableHeader>
+                    <TableBody>
+                      {quizzes.slice(0, 5).map((quiz, index) => (
+                        <TableRow 
+                          key={quiz.id} 
+                          className="group cursor-pointer animate-fade-in"
+                          style={{ animationDelay: `${(index + 5) * 50}ms` }}
+                        >
+                          <TableCell>
+                            <div className="flex flex-col">
+                              <span className="font-medium">{quiz.title}</span>
+                              <span className="text-xs text-muted-foreground sm:hidden">{quiz.subject}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="hidden sm:table-cell">
+                            <Badge variant="outline">{quiz.subject}</Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              className="group/btn transition-all hover:bg-primary hover:text-primary-foreground"
+                            >
+                              <span className="hidden sm:inline">Start Quiz</span>
+                              <span className="sm:hidden">Start</span>
+                              <ArrowRight className="ml-1 h-3 w-3 transition-transform group-hover/btn:translate-x-1" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground text-sm">
+                  No quizzes available at the moment.
+                </div>
+              )}
             </CardContent>
         </Card>
       </section>

@@ -31,7 +31,7 @@ const professorFormSchema = z.object({
     message: 'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character.',
   }),
   confirmPassword: z.string(),
-  subjectExpertise: z.string().min(2, { message: 'Subject expertise is required.' }),
+  dob: z.string().min(1, { message: 'Date of birth is required.' }),
   department: z.string().min(2, { message: 'Department is required.' }),
   yearsOfExperience: z.coerce.number().min(0, { message: 'Years of experience cannot be negative.' }),
 }).refine(data => data.password === data.confirmPassword, {
@@ -47,7 +47,7 @@ const defaultValues: Partial<ProfessorFormValues> = {
   phoneNumber: '',
   password: '',
   confirmPassword: '',
-  subjectExpertise: '',
+  dob: '',
   department: 'CSM',
   yearsOfExperience: 0,
 };
@@ -73,7 +73,7 @@ export function ProfessorRegistrationForm() {
           email: data.email,
           password: data.password,
           role: 'professor',
-          expertise: data.subjectExpertise,
+          dob: data.dob,
           department: data.department,
           phoneNumber: data.phoneNumber,
         }),
@@ -173,12 +173,12 @@ export function ProfessorRegistrationForm() {
         />
         <FormField
           control={form.control}
-          name="subjectExpertise"
+          name="dob"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Subject Expertise</FormLabel>
+              <FormLabel>Date of Birth</FormLabel>
               <FormControl>
-                <Input placeholder="Computer Science" {...field} />
+                <Input type="date" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>

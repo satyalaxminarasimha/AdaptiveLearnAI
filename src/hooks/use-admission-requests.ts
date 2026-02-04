@@ -39,11 +39,16 @@ export function useAdmissionRequests() {
     fetchRequests();
   }, []);
 
-  const approveRequest = async (userId: string) => {
+  const approveRequest = async (userId: string, employeeId?: string) => {
     try {
+      const body: Record<string, unknown> = { isApproved: true };
+      if (employeeId) {
+        body.employeeId = employeeId;
+      }
+      
       const response = await apiRequest(`/api/users/${userId}`, {
         method: 'PATCH',
-        body: JSON.stringify({ isApproved: true }),
+        body: JSON.stringify(body),
       });
 
       if (response.ok) {

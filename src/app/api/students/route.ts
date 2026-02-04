@@ -3,7 +3,7 @@ import dbConnect from '@/lib/mongodb';
 import User from '@/models/User';
 import { verifyToken } from '@/lib/auth';
 
-// GET - Get students (filtered by batch/section for professors)
+// GET - Get students (filtered by batch/section for professors based on their classes)
 export async function GET(request: NextRequest) {
   try {
     const payload = verifyToken(request);
@@ -29,8 +29,39 @@ export async function GET(request: NextRequest) {
       isApproved: true 
     };
     
-    if (batch) query.batch = batch;
-    if (section) query.section = section;
+    // For professors, only show students from classes they teach
+    if (payload.role === 'professor') {
+      const professor = await User.findById(payload.userId).select('classesTeaching');
+      
+      if (professor?.classesTeaching && professor.classesTeaching.length > 0) {
+        // If specific batch/section requested, verify professor teaches that class
+        if (batch && section) {
+          const teachesClass = professor.classesTeaching.some(
+            (c: { batch: string; section: string }) => c.batch === batch && c.section === section
+          );
+          if (!teachesClass) {
+            return NextResponse.json({ error: 'You do not teach this class' }, { status: 403 });
+          }
+          query.batch = batch;
+          query.section = section;
+        } else {
+          // Return students from all classes the professor teaches
+          const classFilters = professor.classesTeaching.map((c: { batch: string; section: string }) => ({
+            batch: c.batch,
+            section: c.section
+          }));
+          query.$or = classFilters;
+        }
+      } else {
+        // Professor has no classes assigned, return empty
+        return NextResponse.json([]);
+      }
+    } else {
+      // Admin can filter by any batch/section
+      if (batch) query.batch = batch;
+      if (section) query.section = section;
+    }
+    
     if (branch) query.branch = branch;
 
     const students = await User.find(query)

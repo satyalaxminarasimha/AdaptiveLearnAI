@@ -78,8 +78,9 @@ export default function ViewStudentsPage() {
     try {
       const token = localStorage.getItem('token');
       const params = new URLSearchParams();
-      if (selectedBatch) params.append('batch', selectedBatch);
-      if (selectedSection) params.append('section', selectedSection);
+      // Only add batch/section if they are not "all" (which means show all)
+      if (selectedBatch && selectedBatch !== 'all') params.append('batch', selectedBatch);
+      if (selectedSection && selectedSection !== 'all') params.append('section', selectedSection);
 
       const res = await fetch(`/api/students?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },

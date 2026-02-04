@@ -1,9 +1,9 @@
 
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
-import { Calendar as CalendarIcon, PlusCircle, BookOpen, Sparkles, AlertCircle } from 'lucide-react';
+import { Calendar as CalendarIcon, PlusCircle, BookOpen, Sparkles, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,14 +15,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { cn } from '@/lib/utils';
 import { useProfessorSession } from '@/context/professor-session-context';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/context/auth-context';
+import { generateQuizFromSyllabus } from '@/ai/flows/generate-quiz-from-syllabus';
 
 export default function CreateQuizPage() {
   const [date, setDate] = useState<Date>();
   const [selectedTopic, setSelectedTopic] = useState<string>('');
-  const [difficulty, setDifficulty] = useState<string>('');
+  const [difficulty, setDifficulty] = useState<string>('medium');
+  const [passPercentage, setPassPercentage] = useState<string>('60');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { selectedClass, isLoading } = useProfessorSession();
   const [topicsForSubject, setTopicsForSubject] = useState<string[]>([]);
   const [topicsLoading, setTopicsLoading] = useState(true);
+  const { toast } = useToast();
+  const { user } = useAuth();
 
   useEffect(() => {
     const fetchTopics = async () => {
@@ -57,6 +64,89 @@ export default function CreateQuizPage() {
 
     fetchTopics();
   }, [selectedClass]);
+
+  const handleSubmit = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    
+    if (!selectedClass || !selectedTopic || !user) {
+      toast({
+        variant: 'destructive',
+        title: 'Missing Information',
+        description: 'Please select a class and topic.',
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      // Generate quiz using AI
+      const aiResult = await generateQuizFromSyllabus({
+        syllabusTopic: selectedTopic,
+        difficultyLevel: difficulty || 'medium',
+        numberOfQuestions: 5,
+      });
+
+      // Format questions for the API - convert correctAnswer string to index
+      const formattedQuestions = aiResult.quizQuestions.map((q, index) => {
+        // Find the index of the correct answer in options
+        const correctIndex = q.options.findIndex(opt => opt === q.correctAnswer);
+        return {
+          question: q.question,
+          options: q.options,
+          correctAnswer: correctIndex >= 0 ? correctIndex : 0,
+          points: 20, // 5 questions = 100 points total
+        };
+      });
+
+      // Save quiz to database
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/quizzes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          title: `${selectedClass.subject} - ${selectedTopic}`,
+          subject: selectedClass.subject,
+          topics: [selectedTopic],
+          questions: formattedQuestions,
+          createdBy: user._id,
+          dueDate: date?.toISOString(),
+          passPercentage: parseInt(passPercentage) || 60,
+          batch: selectedClass.batch,
+          section: selectedClass.section,
+          difficulty: difficulty || 'medium',
+        }),
+      });
+
+      if (response.ok) {
+        toast({
+          title: 'Quiz Created!',
+          description: `Successfully generated a ${formattedQuestions.length}-question quiz for "${selectedTopic}".`,
+        });
+        
+        // Reset form
+        setSelectedTopic('');
+        setDate(undefined);
+        setDifficulty('medium');
+        setPassPercentage('60');
+      } else {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to save quiz');
+      }
+    } catch (error) {
+      console.error('Error creating quiz:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to generate quiz. Please try again.',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   if (isLoading || topicsLoading) {
     return (
@@ -197,11 +287,22 @@ export default function CreateQuizPage() {
                 type="number" 
                 placeholder="e.g., 60" 
                 className="text-sm"
+                value={passPercentage}
+                onChange={(e) => setPassPercentage(e.target.value)}
               />
             </div>
-            <Button size="lg" className="w-full text-sm sm:text-base group">
-              <Sparkles className="mr-2 h-4 w-4 transition-transform group-hover:scale-110" />
-              Log Topic & Generate Quiz
+            <Button 
+              size="lg" 
+              className="w-full text-sm sm:text-base group"
+              onClick={handleSubmit}
+              disabled={isSubmitting || !selectedTopic || !selectedClass}
+            >
+              {isSubmitting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="mr-2 h-4 w-4 transition-transform group-hover:scale-110" />
+              )}
+              {isSubmitting ? 'Generating Quiz...' : 'Log Topic & Generate Quiz'}
             </Button>
           </form>
         </CardContent>

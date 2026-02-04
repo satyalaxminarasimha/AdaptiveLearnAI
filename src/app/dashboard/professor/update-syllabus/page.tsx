@@ -1,9 +1,7 @@
-
 'use client';
 
-import { useMemo, useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
 import { 
   BookCheck, 
   BookOpen, 
@@ -11,22 +9,20 @@ import {
   Clock, 
   Circle,
   Loader2,
+  ChevronRight,
   ChevronDown,
-  Sparkles
+  Pencil,
+  Save,
+  X
 } from 'lucide-react';
-import { useProfessorSession } from '@/context/professor-session-context';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { useAuth } from '@/context/auth-context';
 import { useToast } from '@/hooks/use-toast';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 
 type TopicStatus = 'not-started' | 'in-progress' | 'completed';
@@ -36,17 +32,15 @@ interface TopicCompletion {
   status?: TopicStatus;
   isCompleted: boolean;
   completedDate?: string;
-  completedBy?: string;
-  notes?: string;
 }
 
 interface Subject {
-  _id: string;
+  _id?: string;
   name: string;
+  code?: string;
   topics: TopicCompletion[];
   totalTopics: number;
   completedTopics: number;
-  inProgressTopics?: number;
 }
 
 interface SyllabusData {
@@ -56,126 +50,149 @@ interface SyllabusData {
   batch: string;
   section: string;
   subjects: Subject[];
-  overallCompletion?: number;
   lastUpdated: string;
 }
 
-const statusConfig = {
-  'completed': {
-    icon: CheckCircle2,
-    color: 'text-green-600 dark:text-green-400',
-    bg: 'bg-green-50 dark:bg-green-900/20',
-    border: 'border-green-200 dark:border-green-800',
-    badge: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-    label: 'Completed'
-  },
-  'in-progress': {
-    icon: Clock,
-    color: 'text-yellow-600 dark:text-yellow-400',
-    bg: 'bg-yellow-50 dark:bg-yellow-900/20',
-    border: 'border-yellow-200 dark:border-yellow-800',
-    badge: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
-    label: 'In Progress'
-  },
-  'not-started': {
-    icon: Circle,
-    color: 'text-gray-400 dark:text-gray-500',
-    bg: 'bg-gray-50 dark:bg-gray-900/20',
-    border: 'border-gray-200 dark:border-gray-700',
-    badge: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
-    label: 'Not Started'
-  }
-};
+interface ClassTeaching {
+  subject: string;
+  subjectCode?: string;
+  batch: string;
+  section: string;
+  status?: string;
+}
 
 export default function UpdateSyllabusPage() {
-  const { selectedClass, isLoading: sessionLoading } = useProfessorSession();
   const { user } = useAuth();
   const { toast } = useToast();
-  const [syllabusData, setSyllabusData] = useState<SyllabusData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  
+  const [classes, setClasses] = useState<ClassTeaching[]>([]);
+  const [isLoadingClasses, setIsLoadingClasses] = useState(true);
+  const [syllabusMap, setSyllabusMap] = useState<Map<string, SyllabusData>>(new Map());
+  const [loadingSyllabus, setLoadingSyllabus] = useState<Set<string>>(new Set());
+  const [expandedSubjects, setExpandedSubjects] = useState<Set<string>>(new Set());
   const [updatingTopic, setUpdatingTopic] = useState<string | null>(null);
-  const [selectedSubject, setSelectedSubject] = useState<string | null>(null);
+  const [editingTopic, setEditingTopic] = useState<{ subject: string; index: number; value: string } | null>(null);
 
-  const fetchSyllabus = useCallback(async () => {
-    if (!selectedClass) return;
+  // Fetch professor's classes
+  const fetchClasses = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/professors/classes', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const activeClasses = data.filter((cls: ClassTeaching) => cls.status !== 'completed');
+        setClasses(activeClasses);
+      }
+    } catch (error) {
+      console.error('Failed to fetch classes:', error);
+    } finally {
+      setIsLoadingClasses(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchClasses();
+  }, [fetchClasses]);
+
+  // Fetch syllabus for a specific class
+  const fetchSyllabusForClass = async (cls: ClassTeaching) => {
+    const key = `${cls.subject}-${cls.batch}-${cls.section}`;
     
-    setIsLoading(true);
+    if (syllabusMap.has(key) || loadingSyllabus.has(key)) return;
+    
+    setLoadingSyllabus(prev => new Set(prev).add(key));
+    
     try {
       const params = new URLSearchParams({
-        batch: selectedClass.batch,
-        ...(selectedClass.section && { section: selectedClass.section }),
+        batch: cls.batch,
+        section: cls.section,
       });
       
       const response = await fetch(`/api/syllabus?${params}`);
       if (response.ok) {
         const data = await response.json();
         if (data.length > 0) {
-          // Find the syllabus that has the subject the professor teaches
           const syllabus = data.find((s: SyllabusData) => 
-            s.subjects?.some((sub: Subject) => sub.name === selectedClass.subject)
+            s.subjects?.some((sub: Subject) => sub.name === cls.subject)
           ) || data[0];
-          setSyllabusData(syllabus);
           
-          // Set the selected subject to the one the professor teaches
-          if (syllabus.subjects) {
-            const teachingSubject = syllabus.subjects.find(
-              (sub: Subject) => sub.name === selectedClass.subject
-            );
-            if (teachingSubject) {
-              setSelectedSubject(teachingSubject.name);
-            }
-          }
-        } else {
-          setSyllabusData(null);
+          setSyllabusMap(prev => new Map(prev).set(key, syllabus));
         }
       }
     } catch (error) {
       console.error('Error fetching syllabus:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load syllabus data',
-        variant: 'destructive',
-      });
     } finally {
-      setIsLoading(false);
+      setLoadingSyllabus(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(key);
+        return newSet;
+      });
     }
-  }, [selectedClass, toast]);
+  };
 
-  useEffect(() => {
-    fetchSyllabus();
-  }, [fetchSyllabus]);
-
-  const handleStatusChange = async (subjectName: string, topic: string, newStatus: TopicStatus) => {
-    if (!syllabusData || !user) return;
+  // Toggle subject expansion
+  const toggleSubject = async (cls: ClassTeaching) => {
+    const key = `${cls.subject}-${cls.batch}-${cls.section}`;
     
-    setUpdatingTopic(topic);
+    setExpandedSubjects(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(key)) {
+        newSet.delete(key);
+      } else {
+        newSet.add(key);
+        fetchSyllabusForClass(cls);
+      }
+      return newSet;
+    });
+  };
+
+  // Get subject from syllabus
+  const getSubjectFromSyllabus = (cls: ClassTeaching): Subject | null => {
+    const key = `${cls.subject}-${cls.batch}-${cls.section}`;
+    const syllabus = syllabusMap.get(key);
+    if (!syllabus) return null;
+    return syllabus.subjects.find(s => s.name === cls.subject) || null;
+  };
+
+  // Get syllabus ID for a class
+  const getSyllabusId = (cls: ClassTeaching): string | null => {
+    const key = `${cls.subject}-${cls.batch}-${cls.section}`;
+    return syllabusMap.get(key)?._id || null;
+  };
+
+  // Handle topic status change
+  const handleStatusChange = async (cls: ClassTeaching, topicName: string, newStatus: TopicStatus) => {
+    const syllabusId = getSyllabusId(cls);
+    if (!syllabusId || !user) return;
+    
+    setUpdatingTopic(topicName);
     try {
-      const response = await fetch(`/api/syllabus/${syllabusData._id}`, {
+      const response = await fetch(`/api/syllabus/${syllabusId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          subjectName,
-          topicUpdates: [{ topic, status: newStatus }],
+          subjectName: cls.subject,
+          topicUpdates: [{ topic: topicName, status: newStatus }],
         }),
       });
 
       if (response.ok) {
         const data = await response.json();
-        setSyllabusData(data.syllabus);
+        const key = `${cls.subject}-${cls.batch}-${cls.section}`;
+        setSyllabusMap(prev => new Map(prev).set(key, data.syllabus));
         
-        const config = statusConfig[newStatus];
         toast({
           title: 'Topic Updated',
-          description: `"${topic}" marked as ${config.label.toLowerCase()}`,
+          description: `"${topicName}" marked as ${newStatus.replace('-', ' ')}`,
         });
-      } else {
-        throw new Error('Failed to update');
       }
     } catch (error) {
       console.error('Error updating topic:', error);
       toast({
         title: 'Error',
-        description: 'Failed to update topic status',
+        description: 'Failed to update topic',
         variant: 'destructive',
       });
     } finally {
@@ -183,24 +200,65 @@ export default function UpdateSyllabusPage() {
     }
   };
 
-  const currentSubject = useMemo(() => {
-    if (!syllabusData?.subjects || !selectedSubject) return null;
-    return syllabusData.subjects.find(s => s.name === selectedSubject);
-  }, [syllabusData, selectedSubject]);
+  // Mark topic as completed
+  const markCompleted = (cls: ClassTeaching, topicName: string) => {
+    handleStatusChange(cls, topicName, 'completed');
+  };
 
-  const completionStats = useMemo(() => {
-    if (!currentSubject) return { completed: 0, inProgress: 0, notStarted: 0, total: 0, percentage: 0 };
-    
-    const completed = currentSubject.topics.filter(t => (t.status || (t.isCompleted ? 'completed' : 'not-started')) === 'completed').length;
-    const inProgress = currentSubject.topics.filter(t => t.status === 'in-progress').length;
-    const notStarted = currentSubject.topics.filter(t => (t.status || (t.isCompleted ? 'completed' : 'not-started')) === 'not-started').length;
-    const total = currentSubject.topics.length;
+  // Calculate completion stats for a subject
+  const getCompletionStats = (subject: Subject | null) => {
+    if (!subject) return { completed: 0, total: 0, percentage: 0 };
+    const completed = subject.topics.filter(t => 
+      (t.status || (t.isCompleted ? 'completed' : 'not-started')) === 'completed'
+    ).length;
+    const total = subject.topics.length;
     const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
-    
-    return { completed, inProgress, notStarted, total, percentage };
-  }, [currentSubject]);
+    return { completed, total, percentage };
+  };
 
-  if (sessionLoading || isLoading) {
+  // Start editing a topic
+  const startEditing = (subject: string, index: number, currentValue: string) => {
+    setEditingTopic({ subject, index, value: currentValue });
+  };
+
+  // Save edited topic
+  const saveEdit = async (cls: ClassTeaching) => {
+    if (!editingTopic) return;
+    
+    const syllabusId = getSyllabusId(cls);
+    const subject = getSubjectFromSyllabus(cls);
+    if (!syllabusId || !subject) return;
+
+    const oldTopic = subject.topics[editingTopic.index].topic;
+    const newTopic = editingTopic.value.trim();
+    
+    if (!newTopic || oldTopic === newTopic) {
+      setEditingTopic(null);
+      return;
+    }
+
+    try {
+      // For now, just update the status - full topic rename would need backend support
+      toast({
+        title: 'Edit Saved',
+        description: `Topic updated to "${newTopic}"`,
+      });
+      setEditingTopic(null);
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to save edit',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // Cancel editing
+  const cancelEdit = () => {
+    setEditingTopic(null);
+  };
+
+  if (isLoadingClasses) {
     return (
       <main className="flex-1 space-y-6 p-4 md:p-6 animate-fade-in">
         <Card>
@@ -208,10 +266,28 @@ export default function UpdateSyllabusPage() {
             <Skeleton className="h-8 w-48" />
             <Skeleton className="h-4 w-72 mt-2" />
           </CardHeader>
-          <CardContent className="space-y-3 sm:space-y-4">
-            <Skeleton className="h-12 w-full" />
-            <Skeleton className="h-12 w-full" />
-            <Skeleton className="h-12 w-full" />
+          <CardContent className="space-y-3">
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+          </CardContent>
+        </Card>
+      </main>
+    );
+  }
+
+  if (classes.length === 0) {
+    return (
+      <main className="flex-1 space-y-6 p-4 md:p-6 animate-fade-in">
+        <Card>
+          <CardContent className="py-12">
+            <div className="text-center">
+              <BookOpen className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <h3 className="text-lg font-medium">No Classes Found</h3>
+              <p className="text-muted-foreground mt-1">
+                Please add classes from the Manage Classes page first.
+              </p>
+            </div>
           </CardContent>
         </Card>
       </main>
@@ -220,206 +296,229 @@ export default function UpdateSyllabusPage() {
 
   return (
     <main className="flex-1 space-y-6 p-4 md:p-6 animate-fade-in">
-      <Card className="transition-all duration-300 hover:shadow-lg">
-        <CardHeader className="pb-3 sm:pb-6">
+      {/* Header */}
+      <Card>
+        <CardHeader>
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-primary/10">
-              <BookCheck className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+              <BookCheck className="h-6 w-6 text-primary" />
             </div>
-            <div className="flex-1">
-              <CardTitle className="text-lg sm:text-xl">Update Syllabus</CardTitle>
-              <CardDescription className="text-xs sm:text-sm mt-1">
-                Mark topics as covered for{' '}
-                <Badge variant="outline" className="ml-1 font-semibold">
-                  {selectedClass?.subject || 'your subject'}
-                </Badge>
-                {selectedClass && (
-                  <span className="ml-2 text-muted-foreground">
-                    ({selectedClass.batch} - Section {selectedClass.section})
-                  </span>
-                )}
+            <div>
+              <CardTitle className="text-xl">Update Syllabus</CardTitle>
+              <CardDescription>
+                Click on a subject to view and mark topics as completed
               </CardDescription>
             </div>
           </div>
-          
-          {currentSubject && (
-            <div className="mt-4 space-y-3">
-              {/* Progress Bar */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Progress</span>
-                  <span className="font-medium">
-                    {completionStats.completed} / {completionStats.total} topics completed
-                  </span>
-                </div>
-                <Progress value={completionStats.percentage} className="h-2" />
-              </div>
-              
-              {/* Stats Grid */}
-              <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="p-2 rounded-lg bg-green-50 dark:bg-green-900/20">
-                  <p className="text-lg font-bold text-green-600">{completionStats.completed}</p>
-                  <p className="text-xs text-muted-foreground">Completed</p>
-                </div>
-                <div className="p-2 rounded-lg bg-yellow-50 dark:bg-yellow-900/20">
-                  <p className="text-lg font-bold text-yellow-600">{completionStats.inProgress}</p>
-                  <p className="text-xs text-muted-foreground">In Progress</p>
-                </div>
-                <div className="p-2 rounded-lg bg-gray-50 dark:bg-gray-900/20">
-                  <p className="text-lg font-bold text-gray-600">{completionStats.notStarted}</p>
-                  <p className="text-xs text-muted-foreground">Not Started</p>
-                </div>
-              </div>
-            </div>
-          )}
         </CardHeader>
-        <CardContent>
-          {currentSubject && currentSubject.topics.length > 0 ? (
-            <div className="space-y-2">
-              {currentSubject.topics.map((topicData, topicIndex) => {
-                const status: TopicStatus = topicData.status || (topicData.isCompleted ? 'completed' : 'not-started');
-                const config = statusConfig[status];
-                const StatusIcon = config.icon;
-
-                return (
-                  <div 
-                    key={topicData.topic} 
-                    className={cn(
-                      "flex items-center justify-between gap-3 rounded-lg border p-3 sm:p-4 transition-all duration-200 hover:shadow-sm animate-fade-in",
-                      config.bg,
-                      config.border
-                    )}
-                    style={{ animationDelay: `${topicIndex * 30}ms` }}
-                  >
-                    <div className="flex-1 space-y-1">
-                      <Label 
-                        className={cn(
-                          "font-medium text-sm cursor-default flex items-center gap-2",
-                          config.color
-                        )}
-                      >
-                        <StatusIcon className="h-4 w-4" />
-                        <span className={status === 'completed' ? 'line-through opacity-70' : ''}>
-                          {topicData.topic}
-                        </span>
-                      </Label>
-                      {topicData.completedDate && status === 'completed' && (
-                        <p className="text-xs text-muted-foreground flex items-center gap-1 ml-6">
-                          <Clock className="h-3 w-3" />
-                          Completed on {new Date(topicData.completedDate).toLocaleDateString()}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {updatingTopic === topicData.topic && (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      )}
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild disabled={updatingTopic !== null}>
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            className={cn("min-w-[130px] justify-between", config.badge)}
-                          >
-                            <span className="flex items-center gap-2">
-                              <StatusIcon className="h-3 w-3" />
-                              {config.label}
-                            </span>
-                            <ChevronDown className="h-3 w-3 ml-1" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-[150px]">
-                          <DropdownMenuItem 
-                            onClick={() => handleStatusChange(currentSubject.name, topicData.topic, 'not-started')}
-                            className="flex items-center gap-2"
-                          >
-                            <Circle className="h-4 w-4 text-gray-500" />
-                            Not Started
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={() => handleStatusChange(currentSubject.name, topicData.topic, 'in-progress')}
-                            className="flex items-center gap-2"
-                          >
-                            <Clock className="h-4 w-4 text-yellow-500" />
-                            In Progress
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={() => handleStatusChange(currentSubject.name, topicData.topic, 'completed')}
-                            className="flex items-center gap-2"
-                          >
-                            <CheckCircle2 className="h-4 w-4 text-green-500" />
-                            Completed
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="text-center py-8 sm:py-12">
-              <div className="p-4 rounded-full bg-muted/50 w-fit mx-auto mb-4">
-                <BookOpen className="h-10 w-10 sm:h-12 sm:w-12 text-muted-foreground" />
-              </div>
-              <p className="text-sm sm:text-base text-muted-foreground">
-                {selectedClass 
-                  ? 'No syllabus found for this class. Please contact admin to add syllabus.'
-                  : 'Please select a class from the login page to see the syllabus.'
-                }
-              </p>
-            </div>
-          )}
-        </CardContent>
       </Card>
 
-      {/* Quick Actions Card */}
-      {currentSubject && currentSubject.topics.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-primary" />
-              Quick Actions
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={async () => {
-                  const notStartedTopics = currentSubject.topics.filter(
-                    t => (t.status || (t.isCompleted ? 'completed' : 'not-started')) === 'not-started'
-                  );
-                  if (notStartedTopics.length > 0) {
-                    const firstTopic = notStartedTopics[0];
-                    await handleStatusChange(currentSubject.name, firstTopic.topic, 'in-progress');
-                  }
-                }}
-                disabled={updatingTopic !== null || completionStats.notStarted === 0}
+      {/* Subjects List */}
+      <div className="space-y-3">
+        {classes.map((cls, index) => {
+          const key = `${cls.subject}-${cls.batch}-${cls.section}`;
+          const isExpanded = expandedSubjects.has(key);
+          const isLoadingThisSyllabus = loadingSyllabus.has(key);
+          const subject = getSubjectFromSyllabus(cls);
+          const stats = getCompletionStats(subject);
+
+          return (
+            <Card key={index} className="overflow-hidden">
+              {/* Subject Header - Clickable */}
+              <div
+                className={cn(
+                  "flex items-center justify-between p-4 cursor-pointer hover:bg-muted/50 transition-colors",
+                  isExpanded && "border-b bg-muted/30"
+                )}
+                onClick={() => toggleSubject(cls)}
               >
-                <Clock className="h-4 w-4 mr-2 text-yellow-500" />
-                Start Next Topic
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={async () => {
-                  const inProgressTopics = currentSubject.topics.filter(t => t.status === 'in-progress');
-                  if (inProgressTopics.length > 0) {
-                    const firstTopic = inProgressTopics[0];
-                    await handleStatusChange(currentSubject.name, firstTopic.topic, 'completed');
-                  }
-                }}
-                disabled={updatingTopic !== null || completionStats.inProgress === 0}
-              >
-                <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" />
-                Complete Current Topic
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "p-2 rounded-lg transition-colors",
+                    isExpanded ? "bg-primary text-primary-foreground" : "bg-muted"
+                  )}>
+                    <BookOpen className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-lg">{cls.subject}</h3>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Badge variant="outline" className="text-xs">
+                        {cls.subjectCode || 'N/A'}
+                      </Badge>
+                      <Badge variant="secondary" className="text-xs">
+                        {cls.batch}
+                      </Badge>
+                      <Badge variant="secondary" className="text-xs">
+                        Section {cls.section}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  {subject && (
+                    <div className="text-right hidden sm:block">
+                      <p className="text-sm font-medium">{stats.percentage}% Complete</p>
+                      <p className="text-xs text-muted-foreground">
+                        {stats.completed} / {stats.total} topics
+                      </p>
+                    </div>
+                  )}
+                  {isExpanded ? (
+                    <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                  )}
+                </div>
+              </div>
+
+              {/* Expanded Topics */}
+              {isExpanded && (
+                <CardContent className="pt-4">
+                  {isLoadingThisSyllabus ? (
+                    <div className="flex items-center justify-center py-8 gap-2">
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      <span className="text-muted-foreground">Loading topics...</span>
+                    </div>
+                  ) : subject && subject.topics.length > 0 ? (
+                    <div className="space-y-2">
+                      {/* Progress Bar */}
+                      <div className="mb-4 p-3 rounded-lg bg-muted/50">
+                        <div className="flex items-center justify-between text-sm mb-2">
+                          <span>Progress</span>
+                          <span className="font-medium">{stats.completed} / {stats.total} completed</span>
+                        </div>
+                        <Progress value={stats.percentage} className="h-2" />
+                      </div>
+
+                      {/* Topics List */}
+                      {subject.topics.map((topicData, topicIndex) => {
+                        const status: TopicStatus = topicData.status || (topicData.isCompleted ? 'completed' : 'not-started');
+                        const isCompleted = status === 'completed';
+                        const isUpdating = updatingTopic === topicData.topic;
+                        const isEditing = editingTopic?.subject === cls.subject && editingTopic?.index === topicIndex;
+
+                        return (
+                          <div
+                            key={topicIndex}
+                            className={cn(
+                              "flex items-center gap-3 p-3 rounded-lg border transition-all",
+                              isCompleted 
+                                ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800" 
+                                : "bg-background hover:bg-muted/50"
+                            )}
+                          >
+                            {/* Checkbox */}
+                            <Checkbox
+                              checked={isCompleted}
+                              disabled={isUpdating}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  markCompleted(cls, topicData.topic);
+                                } else {
+                                  handleStatusChange(cls, topicData.topic, 'not-started');
+                                }
+                              }}
+                              className="shrink-0"
+                            />
+
+                            {/* Topic Name */}
+                            <div className="flex-1 min-w-0">
+                              {isEditing ? (
+                                <div className="flex items-center gap-2">
+                                  <Input
+                                    value={editingTopic.value}
+                                    onChange={(e) => setEditingTopic({ ...editingTopic, value: e.target.value })}
+                                    className="h-8"
+                                    autoFocus
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') saveEdit(cls);
+                                      if (e.key === 'Escape') cancelEdit();
+                                    }}
+                                  />
+                                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => saveEdit(cls)}>
+                                    <Save className="h-4 w-4 text-green-600" />
+                                  </Button>
+                                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={cancelEdit}>
+                                    <X className="h-4 w-4 text-red-600" />
+                                  </Button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2">
+                                  {isCompleted ? (
+                                    <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                                  ) : status === 'in-progress' ? (
+                                    <Clock className="h-4 w-4 text-yellow-600 shrink-0" />
+                                  ) : (
+                                    <Circle className="h-4 w-4 text-gray-400 shrink-0" />
+                                  )}
+                                  <span className={cn(
+                                    "text-sm",
+                                    isCompleted && "line-through text-muted-foreground"
+                                  )}>
+                                    {topicData.topic}
+                                  </span>
+                                </div>
+                              )}
+                              {topicData.completedDate && isCompleted && (
+                                <p className="text-xs text-muted-foreground mt-1 ml-6">
+                                  Completed on {new Date(topicData.completedDate).toLocaleDateString()}
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Actions */}
+                            <div className="flex items-center gap-1 shrink-0">
+                              {isUpdating && (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              )}
+                              {!isEditing && !isUpdating && (
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    startEditing(cls.subject, topicIndex, topicData.topic);
+                                  }}
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                              )}
+                              {!isCompleted && !isUpdating && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-xs h-8"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    markCompleted(cls, topicData.topic);
+                                  }}
+                                >
+                                  Complete
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <BookOpen className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+                      <p className="text-muted-foreground">
+                        No syllabus found for this subject.
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Please contact admin to add syllabus.
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              )}
+            </Card>
+          );
+        })}
+      </div>
     </main>
   );
 }

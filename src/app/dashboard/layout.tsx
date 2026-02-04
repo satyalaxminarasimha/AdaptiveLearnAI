@@ -2,12 +2,14 @@
 'use client';
 
 import { useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import {
   AlertTriangle,
   BarChart2,
   BookCheck,
   BookCopy,
   BrainCircuit,
+  CalendarDays,
   FileCheck,
   FileEdit,
   FilePen,
@@ -42,8 +44,14 @@ import {
   SidebarTrigger,
   SidebarMenuSkeleton,
 } from '@/components/ui/sidebar';
-import { AiChatTutor } from '@/components/ai-chat-tutor';
 import { adminUser, professorUser, studentUser } from '@/lib/mock-data';
+
+// Dynamic import to prevent hydration mismatch with Radix UI components
+const AiChatTutor = dynamic(
+  () => import('@/components/ai-chat-tutor').then((mod) => mod.AiChatTutor),
+  { ssr: false }
+);
+
 import { ProfessorSessionProvider } from '@/context/professor-session-context';
 import { StudentSessionProvider } from '@/context/student-session-context';
 import { useAuth } from '@/context/auth-context';
@@ -168,14 +176,27 @@ const ProfessorNav = () => {
       <SidebarMenuItem>
         <SidebarMenuButton 
           href="/dashboard/professor/manage-classes" 
-          tooltip="Manage Classes"
+          tooltip="My Courses"
           className={cn(
             "transition-all duration-200",
             pathname === '/dashboard/professor/manage-classes' && "bg-sidebar-accent text-sidebar-accent-foreground"
           )}
         >
           <BookCopy className="transition-transform group-hover:scale-110" />
-          Manage Classes
+          My Courses
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+      <SidebarMenuItem>
+        <SidebarMenuButton 
+          href="/dashboard/professor/timetable" 
+          tooltip="Classroom Timetable"
+          className={cn(
+            "transition-all duration-200",
+            pathname === '/dashboard/professor/timetable' && "bg-sidebar-accent text-sidebar-accent-foreground"
+          )}
+        >
+          <CalendarDays className="transition-transform group-hover:scale-110" />
+          Classroom Timetable
         </SidebarMenuButton>
       </SidebarMenuItem>
       <SidebarMenuItem>

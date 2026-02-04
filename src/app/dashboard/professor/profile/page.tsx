@@ -22,7 +22,11 @@ import {
   KeyRound,
   Save,
   BookOpen,
-  Briefcase
+  Briefcase,
+  Phone,
+  Building2,
+  Cake,
+  IdCard
 } from 'lucide-react';
 import { useProfessorSession } from '@/context/professor-session-context';
 import { useAuth } from '@/context/auth-context';
@@ -30,6 +34,19 @@ import { useAuth } from '@/context/auth-context';
 export default function ProfessorProfilePage() {
   const { selectedClass } = useProfessorSession();
   const { user } = useAuth();
+  
+  // All hooks must be called before any conditional returns
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
   
   // Use actual logged-in user only - no mock data
   const currentUser = user;
@@ -47,18 +64,6 @@ export default function ProfessorProfilePage() {
       </main>
     );
   }
-
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  
-  const [passwordForm, setPasswordForm] = useState({
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: ''
-  });
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -157,22 +162,40 @@ export default function ProfessorProfilePage() {
               </div>
 
               <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                <Briefcase className="h-5 w-5 text-muted-foreground" />
+                <IdCard className="h-5 w-5 text-muted-foreground" />
                 <div>
-                  <p className="text-xs text-muted-foreground">Expertise</p>
-                  <p className="font-medium">{('expertise' in currentUser && currentUser.expertise) || 'Not specified'}</p>
+                  <p className="text-xs text-muted-foreground">Employee ID</p>
+                  <p className="font-medium">{(currentUser as any).employeeId || 'Not assigned'}</p>
                 </div>
               </div>
 
-              {selectedClass && (
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                  <BookOpen className="h-5 w-5 text-muted-foreground" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Current Class</p>
-                    <p className="font-medium">{selectedClass.subject} ({selectedClass.batch} - {selectedClass.section})</p>
-                  </div>
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                <Building2 className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Department</p>
+                  <p className="font-medium">{(currentUser as any).department || 'Not specified'}</p>
                 </div>
-              )}
+              </div>
+
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                <Phone className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Phone Number</p>
+                  <p className="font-medium">{(currentUser as any).phoneNumber || 'Not provided'}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                <Cake className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Date of Birth</p>
+                  <p className="font-medium">
+                    {(currentUser as any).dateOfBirth 
+                      ? new Date((currentUser as any).dateOfBirth).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+                      : 'Not provided'}
+                  </p>
+                </div>
+              </div>
 
               <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
                 <CheckCircle2 className="h-5 w-5 text-green-500" />

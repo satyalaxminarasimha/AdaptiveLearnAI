@@ -41,6 +41,19 @@ export default function StudentProfilePage() {
   const { session } = useStudentSession();
   const { user } = useAuth();
   
+  // All hooks must be called before any conditional returns
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  
   // Use actual logged-in user only - no mock data
   const currentUser = user;
 
@@ -57,17 +70,6 @@ export default function StudentProfilePage() {
       </main>
     );
   }
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  
-  const [passwordForm, setPasswordForm] = useState({
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: ''
-  });
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();

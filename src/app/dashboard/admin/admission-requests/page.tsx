@@ -7,7 +7,17 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Check, UserPlus, X, RefreshCw, Users } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Check, UserPlus, X, RefreshCw, Users, IdCard } from 'lucide-react';
 import { admitRequests } from '@/lib/mock-data';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAdmissionRequests } from '@/hooks/use-admission-requests';
@@ -18,6 +28,9 @@ export default function AdmissionRequestsPage() {
   const { requests, isLoading, approveRequest, rejectRequest, refetch } = useAdmissionRequests();
   const { toast } = useToast();
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [employeeIdDialogOpen, setEmployeeIdDialogOpen] = useState(false);
+  const [pendingProfessor, setPendingProfessor] = useState<any>(null);
+  const [employeeId, setEmployeeId] = useState('');
 
   const { professorRequests, studentRequests } = useMemo(() => {
     const professorRequests = requests.filter((req: any) => req.role === 'professor');
@@ -25,7 +38,17 @@ export default function AdmissionRequestsPage() {
     return { professorRequests, studentRequests };
   }, [requests]);
 
-  const handleApprove = async (userId: string) => {
+  const handleApprove = async (userId: string, role: string) => {
+    // For professors, show employee ID dialog first
+    if (role === 'professor') {
+      const professor = requests.find(r => r._id === userId);
+      setPendingProfessor(professor);
+      setEmployeeId('');
+      setEmployeeIdDialogOpen(true);
+      return;
+    }
+    
+    // For students, approve directly
     setProcessingId(userId);
     const result = await approveRequest(userId);
     setProcessingId(null);
@@ -33,6 +56,38 @@ export default function AdmissionRequestsPage() {
       toast({
         title: 'Request Approved',
         description: 'The user has been approved and can now log in.',
+      });
+    } else {
+      toast({
+        variant: 'destructive',
+        title: 'Approval Failed',
+        description: result.error,
+      });
+    }
+  };
+
+  const handleProfessorApproval = async () => {
+    if (!pendingProfessor || !employeeId.trim()) {
+      toast({
+        variant: 'destructive',
+        title: 'Employee ID Required',
+        description: 'Please enter an employee ID for the professor.',
+      });
+      return;
+    }
+
+    setProcessingId(pendingProfessor._id);
+    setEmployeeIdDialogOpen(false);
+    
+    const result = await approveRequest(pendingProfessor._id, employeeId.trim());
+    setProcessingId(null);
+    setPendingProfessor(null);
+    setEmployeeId('');
+    
+    if (result.success) {
+      toast({
+        title: 'Professor Approved',
+        description: `Professor has been approved with Employee ID: ${employeeId}`,
       });
     } else {
       toast({
@@ -103,7 +158,7 @@ export default function AdmissionRequestsPage() {
               "h-8 w-8 border-green-500 text-green-500 hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/30 transition-all",
               processingId === req._id && "opacity-50 pointer-events-none"
             )}
-            onClick={() => handleApprove(req._id)}
+            onClick={() => handleApprove(req._id, req.role)}
             disabled={processingId === req._id}
           >
             {processingId === req._id ? (
@@ -249,6 +304,49 @@ export default function AdmissionRequestsPage() {
             </Accordion>
           </CardContent>
         </Card>
+
+      {/* Employee ID Dialog for Professor Approval */}
+      <Dialog open={employeeIdDialogOpen} onOpenChange={setEmployeeIdDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <IdCard className="h-5 w-5 text-primary" />
+              Assign Employee ID
+            </DialogTitle>
+            <DialogDescription>
+              Enter the employee ID for {pendingProfessor?.name} to complete the approval.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="employeeId">Employee ID</Label>
+              <Input
+                id="employeeId"
+                placeholder="e.g., EMP001"
+                value={employeeId}
+                onChange={(e) => setEmployeeId(e.target.value)}
+                className="col-span-3"
+              />
+            </div>
+            {pendingProfessor && (
+              <div className="rounded-lg bg-muted p-3 space-y-1 text-sm">
+                <p><span className="text-muted-foreground">Name:</span> {pendingProfessor.name}</p>
+                <p><span className="text-muted-foreground">Email:</span> {pendingProfessor.email}</p>
+                <p><span className="text-muted-foreground">Department:</span> {pendingProfessor.department || 'Not specified'}</p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEmployeeIdDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleProfessorApproval} disabled={!employeeId.trim()}>
+              <Check className="h-4 w-4 mr-2" />
+              Approve Professor
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }

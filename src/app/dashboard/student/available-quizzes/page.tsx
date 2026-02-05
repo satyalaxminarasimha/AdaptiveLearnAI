@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -20,20 +21,25 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ListChecks, ArrowRight, Clock, BookOpen, Calendar, AlertCircle } from 'lucide-react';
+import { ListChecks, ArrowRight, Clock, BookOpen, Calendar, AlertCircle, CheckCircle2, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface Quiz {
   _id: string;
   title: string;
   subject: string;
+  unitName?: string;
   dueDate?: string;
   status?: string;
   difficulty?: string;
+  duration?: number;
+  isAIGenerated?: boolean;
   totalQuestions?: number;
+  hasAttempted?: boolean;
 }
 
 export default function AvailableQuizzesPage() {
+  const router = useRouter();
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -41,14 +47,27 @@ export default function AvailableQuizzesPage() {
     const fetchQuizzes = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch('/api/quizzes', {
+        
+        // Fetch quizzes
+        const response = await fetch('/api/quizzes?isActive=true', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
+        
+        // Fetch user's attempts
+        const attemptsRes = await fetch('/api/quiz-attempts', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
         if (response.ok) {
           const data = await response.json();
+          const attempts = attemptsRes.ok ? await attemptsRes.json() : [];
+          const attemptedQuizIds = new Set(attempts.map((a: any) => a.quizId?._id || a.quizId));
+          
           setQuizzes(data.map((q: any) => ({
             ...q,
-            status: 'Available'
+            totalQuestions: q.questions?.length || 0,
+            status: attemptedQuizIds.has(q._id) ? 'Completed' : 'Available',
+            hasAttempted: attemptedQuizIds.has(q._id),
           })));
         }
       } catch (error) {
@@ -60,6 +79,10 @@ export default function AvailableQuizzesPage() {
 
     fetchQuizzes();
   }, []);
+
+  const handleStartQuiz = (quizId: string) => {
+    router.push(`/dashboard/student/available-quizzes/${quizId}`);
+  };
 
   if (isLoading) {
     return (
@@ -160,14 +183,22 @@ export default function AvailableQuizzesPage() {
                           <span className="text-sm text-muted-foreground">{quiz.totalQuestions || '-'} questions</span>
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            className="group/btn transition-all hover:bg-primary hover:text-primary-foreground hover:border-primary"
-                          >
-                            Start Quiz
-                            <ArrowRight className="ml-1.5 h-3.5 w-3.5 transition-transform group-hover/btn:translate-x-1" />
-                          </Button>
+                          {quiz.hasAttempted ? (
+                            <Badge variant="secondary" className="bg-green-100 text-green-800">
+                              <CheckCircle2 className="h-3 w-3 mr-1" />
+                              Completed
+                            </Badge>
+                          ) : (
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              className="group/btn transition-all hover:bg-primary hover:text-primary-foreground hover:border-primary"
+                              onClick={() => handleStartQuiz(quiz._id)}
+                            >
+                              Start Quiz
+                              <ArrowRight className="ml-1.5 h-3.5 w-3.5 transition-transform group-hover/btn:translate-x-1" />
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -209,14 +240,28 @@ export default function AvailableQuizzesPage() {
                       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                         <Clock className="h-3 w-3" />
                         <span>{quiz.totalQuestions || '-'} questions</span>
+                        {quiz.duration && (
+                          <>
+                            <span>•</span>
+                            <span>{quiz.duration} min</span>
+                          </>
+                        )}
                       </div>
-                      <Button 
-                        size="sm"
-                        className="h-8 text-xs"
-                      >
-                        Start
-                        <ArrowRight className="ml-1 h-3 w-3" />
-                      </Button>
+                      {quiz.hasAttempted ? (
+                        <Badge variant="secondary" className="bg-green-100 text-green-800 text-xs">
+                          <CheckCircle2 className="h-3 w-3 mr-1" />
+                          Done
+                        </Badge>
+                      ) : (
+                        <Button 
+                          size="sm"
+                          className="h-8 text-xs"
+                          onClick={() => handleStartQuiz(quiz._id)}
+                        >
+                          Start
+                          <ArrowRight className="ml-1 h-3 w-3" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 ))}

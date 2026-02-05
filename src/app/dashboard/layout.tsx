@@ -240,6 +240,19 @@ const ProfessorNav = () => {
       </SidebarMenuItem>
       <SidebarMenuItem>
         <SidebarMenuButton 
+          href="/dashboard/professor/weak-areas" 
+          tooltip="Weak Areas Report"
+          className={cn(
+            "transition-all duration-200",
+            pathname === '/dashboard/professor/weak-areas' && "bg-sidebar-accent text-sidebar-accent-foreground"
+          )}
+        >
+          <AlertTriangle className="transition-transform group-hover:scale-110" />
+          Weak Areas Report
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+      <SidebarMenuItem>
+        <SidebarMenuButton 
           href="/dashboard/professor/update-syllabus" 
           tooltip="Update Syllabus"
           className={cn(

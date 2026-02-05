@@ -11,19 +11,30 @@ import {
   Loader2,
   ChevronRight,
   ChevronDown,
-  Pencil,
-  Save,
-  X
+  Layers,
+  Sparkles,
+  FileQuestion
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { useAuth } from '@/context/auth-context';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 type TopicStatus = 'not-started' | 'in-progress' | 'completed';
 
@@ -58,7 +69,67 @@ interface ClassTeaching {
   subjectCode?: string;
   batch: string;
   section: string;
+  year?: string;
+  semester?: string;
   status?: string;
+}
+
+interface UnitGroup {
+  unitNumber: string;
+  unitName: string;
+  topics: TopicCompletion[];
+  completed: number;
+  total: number;
+}
+
+interface GeneratedQuiz {
+  _id: string;
+  title: string;
+  unitName: string;
+  questionCount: number;
+}
+
+// Helper function to parse unit from topic name
+function parseUnitFromTopic(topic: string): { unit: string; topicName: string } {
+  const match = topic.match(/^UNIT\s*([IVX]+|[0-9]+)\s*:\s*(.+)$/i);
+  if (match) {
+    return { unit: match[1], topicName: match[2] };
+  }
+  return { unit: 'General', topicName: topic };
+}
+
+// Helper function to group topics by unit
+function groupTopicsByUnit(topics: TopicCompletion[]): UnitGroup[] {
+  const unitMap = new Map<string, TopicCompletion[]>();
+  
+  topics.forEach(topic => {
+    const { unit } = parseUnitFromTopic(topic.topic);
+    if (!unitMap.has(unit)) {
+      unitMap.set(unit, []);
+    }
+    unitMap.get(unit)!.push(topic);
+  });
+
+  // Sort units (I, II, III, IV, V or 1, 2, 3, 4, 5)
+  const romanToNum: Record<string, number> = { 'I': 1, 'II': 2, 'III': 3, 'IV': 4, 'V': 5, 'VI': 6, 'VII': 7, 'VIII': 8 };
+  const sortedUnits = Array.from(unitMap.entries()).sort((a, b) => {
+    const numA = romanToNum[a[0]] || parseInt(a[0]) || 99;
+    const numB = romanToNum[b[0]] || parseInt(b[0]) || 99;
+    return numA - numB;
+  });
+
+  return sortedUnits.map(([unit, topics]) => {
+    const completed = topics.filter(t => 
+      t.status === 'completed' || t.isCompleted
+    ).length;
+    return {
+      unitNumber: unit,
+      unitName: `Unit ${unit}`,
+      topics,
+      completed,
+      total: topics.length,
+    };
+  });
 }
 
 export default function UpdateSyllabusPage() {
@@ -70,8 +141,12 @@ export default function UpdateSyllabusPage() {
   const [syllabusMap, setSyllabusMap] = useState<Map<string, SyllabusData>>(new Map());
   const [loadingSyllabus, setLoadingSyllabus] = useState<Set<string>>(new Set());
   const [expandedSubjects, setExpandedSubjects] = useState<Set<string>>(new Set());
+  const [expandedUnits, setExpandedUnits] = useState<Set<string>>(new Set());
   const [updatingTopic, setUpdatingTopic] = useState<string | null>(null);
-  const [editingTopic, setEditingTopic] = useState<{ subject: string; index: number; value: string } | null>(null);
+  const [generatingQuiz, setGeneratingQuiz] = useState<string | null>(null);
+  const [unitQuizzes, setUnitQuizzes] = useState<Map<string, GeneratedQuiz>>(new Map());
+  const [showQuizDialog, setShowQuizDialog] = useState(false);
+  const [generatedQuizInfo, setGeneratedQuizInfo] = useState<any>(null);
 
   // Fetch professor's classes
   const fetchClasses = useCallback(async () => {
@@ -109,8 +184,13 @@ export default function UpdateSyllabusPage() {
         batch: cls.batch,
         section: cls.section,
       });
+      if (cls.year) params.append('year', cls.year);
+      if (cls.semester) params.append('semester', cls.semester);
       
-      const response = await fetch(`/api/syllabus?${params}`);
+      const response = await fetch(`/api/syllabus?${params}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        cache: 'no-store',
+      });
       if (response.ok) {
         const data = await response.json();
         if (data.length > 0) {
@@ -148,6 +228,20 @@ export default function UpdateSyllabusPage() {
     });
   };
 
+  // Toggle unit expansion
+  const toggleUnit = (subjectKey: string, unitNumber: string) => {
+    const key = `${subjectKey}-${unitNumber}`;
+    setExpandedUnits(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(key)) {
+        newSet.delete(key);
+      } else {
+        newSet.add(key);
+      }
+      return newSet;
+    });
+  };
+
   // Get subject from syllabus
   const getSubjectFromSyllabus = (cls: ClassTeaching): Subject | null => {
     const key = `${cls.subject}-${cls.batch}-${cls.section}`;
@@ -167,11 +261,17 @@ export default function UpdateSyllabusPage() {
     const syllabusId = getSyllabusId(cls);
     if (!syllabusId || !user) return;
     
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    
     setUpdatingTopic(topicName);
     try {
       const response = await fetch(`/api/syllabus/${syllabusId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
         body: JSON.stringify({
           subjectName: cls.subject,
           topicUpdates: [{ topic: topicName, status: newStatus }],
@@ -185,7 +285,7 @@ export default function UpdateSyllabusPage() {
         
         toast({
           title: 'Topic Updated',
-          description: `"${topicName}" marked as ${newStatus.replace('-', ' ')}`,
+          description: `Topic marked as ${newStatus.replace('-', ' ')}`,
         });
       }
     } catch (error) {
@@ -216,46 +316,91 @@ export default function UpdateSyllabusPage() {
     return { completed, total, percentage };
   };
 
-  // Start editing a topic
-  const startEditing = (subject: string, index: number, currentValue: string) => {
-    setEditingTopic({ subject, index, value: currentValue });
+  // Check if quiz exists for a unit
+  const checkUnitQuiz = async (subject: string, unitName: string, batch: string, section: string) => {
+    const key = `${subject}-${unitName}`;
+    if (unitQuizzes.has(key)) return;
+    
+    try {
+      const token = localStorage.getItem('token');
+      const params = new URLSearchParams({
+        subject,
+        unitName: `Unit ${unitName}`,
+        batch,
+        section,
+      });
+      
+      const response = await fetch(`/api/quizzes/generate-unit?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      if (response.ok) {
+        const quizzes = await response.json();
+        if (quizzes.length > 0) {
+          setUnitQuizzes(prev => new Map(prev).set(key, quizzes[0]));
+        }
+      }
+    } catch (error) {
+      console.error('Error checking unit quiz:', error);
+    }
   };
 
-  // Save edited topic
-  const saveEdit = async (cls: ClassTeaching) => {
-    if (!editingTopic) return;
+  // Generate quiz for a completed unit
+  const handleGenerateQuiz = async (cls: ClassTeaching, unit: UnitGroup) => {
+    const key = `${cls.subject}-${unit.unitNumber}`;
+    setGeneratingQuiz(key);
     
-    const syllabusId = getSyllabusId(cls);
-    const subject = getSubjectFromSyllabus(cls);
-    if (!syllabusId || !subject) return;
-
-    const oldTopic = subject.topics[editingTopic.index].topic;
-    const newTopic = editingTopic.value.trim();
-    
-    if (!newTopic || oldTopic === newTopic) {
-      setEditingTopic(null);
-      return;
-    }
-
     try {
-      // For now, just update the status - full topic rename would need backend support
-      toast({
-        title: 'Edit Saved',
-        description: `Topic updated to "${newTopic}"`,
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/quizzes/generate-unit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          subject: cls.subject,
+          unitName: `Unit ${unit.unitNumber}`,
+          unitNumber: unit.unitNumber,
+          topics: unit.topics.map(t => t.topic),
+          batch: cls.batch,
+          section: cls.section,
+          year: cls.year,
+          semester: cls.semester,
+          numberOfQuestions: 30,
+          duration: 45,
+          passPercentage: 60,
+        }),
       });
-      setEditingTopic(null);
+      
+      if (response.ok) {
+        const data = await response.json();
+        setUnitQuizzes(prev => new Map(prev).set(key, data.quiz));
+        setGeneratedQuizInfo(data.quiz);
+        setShowQuizDialog(true);
+        
+        toast({
+          title: 'Quiz Generated Successfully!',
+          description: `${data.quiz.questionCount} questions created for ${unit.unitName}`,
+        });
+      } else {
+        const error = await response.json();
+        toast({
+          title: 'Error',
+          description: error.error || 'Failed to generate quiz',
+          variant: 'destructive',
+        });
+      }
     } catch (error) {
+      console.error('Error generating quiz:', error);
       toast({
         title: 'Error',
-        description: 'Failed to save edit',
+        description: 'Failed to generate quiz. Please try again.',
         variant: 'destructive',
       });
+    } finally {
+      setGeneratingQuiz(null);
     }
-  };
-
-  // Cancel editing
-  const cancelEdit = () => {
-    setEditingTopic(null);
   };
 
   if (isLoadingClasses) {
@@ -306,7 +451,7 @@ export default function UpdateSyllabusPage() {
             <div>
               <CardTitle className="text-xl">Update Syllabus</CardTitle>
               <CardDescription>
-                Click on a subject to view and mark topics as completed
+                Click on a subject to view units, then expand each unit to see topics
               </CardDescription>
             </div>
           </div>
@@ -321,6 +466,7 @@ export default function UpdateSyllabusPage() {
           const isLoadingThisSyllabus = loadingSyllabus.has(key);
           const subject = getSubjectFromSyllabus(cls);
           const stats = getCompletionStats(subject);
+          const unitGroups = subject ? groupTopicsByUnit(subject.topics) : [];
 
           return (
             <Card key={index} className="overflow-hidden">
@@ -341,7 +487,7 @@ export default function UpdateSyllabusPage() {
                   </div>
                   <div>
                     <h3 className="font-semibold text-lg">{cls.subject}</h3>
-                    <div className="flex items-center gap-2 mt-1">
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
                       <Badge variant="outline" className="text-xs">
                         {cls.subjectCode || 'N/A'}
                       </Badge>
@@ -351,6 +497,11 @@ export default function UpdateSyllabusPage() {
                       <Badge variant="secondary" className="text-xs">
                         Section {cls.section}
                       </Badge>
+                      {cls.year && cls.semester && (
+                        <Badge variant="outline" className="text-xs">
+                          Year {cls.year} Sem {cls.semester}
+                        </Badge>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -371,134 +522,219 @@ export default function UpdateSyllabusPage() {
                 </div>
               </div>
 
-              {/* Expanded Topics */}
+              {/* Expanded Units */}
               {isExpanded && (
                 <CardContent className="pt-4">
                   {isLoadingThisSyllabus ? (
                     <div className="flex items-center justify-center py-8 gap-2">
                       <Loader2 className="h-5 w-5 animate-spin" />
-                      <span className="text-muted-foreground">Loading topics...</span>
+                      <span className="text-muted-foreground">Loading syllabus...</span>
                     </div>
-                  ) : subject && subject.topics.length > 0 ? (
-                    <div className="space-y-2">
-                      {/* Progress Bar */}
+                  ) : unitGroups.length > 0 ? (
+                    <div className="space-y-3">
+                      {/* Overall Progress Bar */}
                       <div className="mb-4 p-3 rounded-lg bg-muted/50">
                         <div className="flex items-center justify-between text-sm mb-2">
-                          <span>Progress</span>
-                          <span className="font-medium">{stats.completed} / {stats.total} completed</span>
+                          <span className="font-medium">Overall Progress</span>
+                          <span className="font-medium">{stats.completed} / {stats.total} topics completed</span>
                         </div>
                         <Progress value={stats.percentage} className="h-2" />
                       </div>
 
-                      {/* Topics List */}
-                      {subject.topics.map((topicData, topicIndex) => {
-                        const status: TopicStatus = topicData.status || (topicData.isCompleted ? 'completed' : 'not-started');
-                        const isCompleted = status === 'completed';
-                        const isUpdating = updatingTopic === topicData.topic;
-                        const isEditing = editingTopic?.subject === cls.subject && editingTopic?.index === topicIndex;
+                      {/* Units List */}
+                      {unitGroups.map((unit) => {
+                        const unitKey = `${key}-${unit.unitNumber}`;
+                        const isUnitExpanded = expandedUnits.has(unitKey);
+                        const unitPercentage = unit.total > 0 ? Math.round((unit.completed / unit.total) * 100) : 0;
 
                         return (
-                          <div
-                            key={topicIndex}
-                            className={cn(
-                              "flex items-center gap-3 p-3 rounded-lg border transition-all",
-                              isCompleted 
-                                ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800" 
-                                : "bg-background hover:bg-muted/50"
-                            )}
+                          <Collapsible
+                            key={unit.unitNumber}
+                            open={isUnitExpanded}
+                            onOpenChange={() => toggleUnit(key, unit.unitNumber)}
                           >
-                            {/* Checkbox */}
-                            <Checkbox
-                              checked={isCompleted}
-                              disabled={isUpdating}
-                              onCheckedChange={(checked) => {
-                                if (checked) {
-                                  markCompleted(cls, topicData.topic);
-                                } else {
-                                  handleStatusChange(cls, topicData.topic, 'not-started');
-                                }
-                              }}
-                              className="shrink-0"
-                            />
-
-                            {/* Topic Name */}
-                            <div className="flex-1 min-w-0">
-                              {isEditing ? (
-                                <div className="flex items-center gap-2">
-                                  <Input
-                                    value={editingTopic.value}
-                                    onChange={(e) => setEditingTopic({ ...editingTopic, value: e.target.value })}
-                                    className="h-8"
-                                    autoFocus
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter') saveEdit(cls);
-                                      if (e.key === 'Escape') cancelEdit();
-                                    }}
-                                  />
-                                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => saveEdit(cls)}>
-                                    <Save className="h-4 w-4 text-green-600" />
-                                  </Button>
-                                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={cancelEdit}>
-                                    <X className="h-4 w-4 text-red-600" />
-                                  </Button>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-2">
-                                  {isCompleted ? (
-                                    <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
-                                  ) : status === 'in-progress' ? (
-                                    <Clock className="h-4 w-4 text-yellow-600 shrink-0" />
-                                  ) : (
-                                    <Circle className="h-4 w-4 text-gray-400 shrink-0" />
-                                  )}
-                                  <span className={cn(
-                                    "text-sm",
-                                    isCompleted && "line-through text-muted-foreground"
+                            <CollapsibleTrigger asChild>
+                              <div
+                                className={cn(
+                                  "flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all",
+                                  isUnitExpanded 
+                                    ? "bg-primary/5 border-primary/20" 
+                                    : "bg-muted/30 hover:bg-muted/50",
+                                  unit.completed === unit.total && unit.total > 0 && "border-green-300 bg-green-50 dark:bg-green-900/20"
+                                )}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div className={cn(
+                                    "p-2 rounded-md",
+                                    unit.completed === unit.total && unit.total > 0
+                                      ? "bg-green-100 dark:bg-green-900"
+                                      : "bg-muted"
                                   )}>
-                                    {topicData.topic}
-                                  </span>
+                                    <Layers className={cn(
+                                      "h-4 w-4",
+                                      unit.completed === unit.total && unit.total > 0
+                                        ? "text-green-600"
+                                        : "text-muted-foreground"
+                                    )} />
+                                  </div>
+                                  <div>
+                                    <h4 className="font-medium">{unit.unitName}</h4>
+                                    <p className="text-xs text-muted-foreground">
+                                      {unit.total} topics
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <div className="text-right">
+                                    <div className="flex items-center gap-2">
+                                      {unit.completed === unit.total && unit.total > 0 ? (
+                                        <Badge variant="default" className="bg-green-600 text-xs">
+                                          Completed
+                                        </Badge>
+                                      ) : (
+                                        <Badge variant="secondary" className="text-xs">
+                                          {unitPercentage}%
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                      {unit.completed}/{unit.total}
+                                    </p>
+                                  </div>
+                                  {isUnitExpanded ? (
+                                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                  ) : (
+                                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                                  )}
+                                </div>
+                              </div>
+                            </CollapsibleTrigger>
+
+                            <CollapsibleContent className="mt-2 ml-4 space-y-1">
+                              {unit.topics.map((topicData, topicIndex) => {
+                                const status: TopicStatus = topicData.status || (topicData.isCompleted ? 'completed' : 'not-started');
+                                const isCompleted = status === 'completed';
+                                const isUpdating = updatingTopic === topicData.topic;
+                                const { topicName } = parseUnitFromTopic(topicData.topic);
+
+                                return (
+                                  <div
+                                    key={topicIndex}
+                                    className={cn(
+                                      "flex items-center gap-3 p-2.5 rounded-md border transition-all",
+                                      isCompleted 
+                                        ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800" 
+                                        : "bg-background hover:bg-muted/50 border-transparent"
+                                    )}
+                                  >
+                                    {/* Checkbox */}
+                                    <Checkbox
+                                      checked={isCompleted}
+                                      disabled={isUpdating}
+                                      onCheckedChange={(checked) => {
+                                        if (checked) {
+                                          markCompleted(cls, topicData.topic);
+                                        } else {
+                                          handleStatusChange(cls, topicData.topic, 'not-started');
+                                        }
+                                      }}
+                                      className="shrink-0"
+                                    />
+
+                                    {/* Topic Name */}
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2">
+                                        {isCompleted ? (
+                                          <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                                        ) : status === 'in-progress' ? (
+                                          <Clock className="h-4 w-4 text-yellow-600 shrink-0" />
+                                        ) : (
+                                          <Circle className="h-4 w-4 text-gray-400 shrink-0" />
+                                        )}
+                                        <span className={cn(
+                                          "text-sm",
+                                          isCompleted && "line-through text-muted-foreground"
+                                        )}>
+                                          {topicName}
+                                        </span>
+                                      </div>
+                                      {topicData.completedDate && isCompleted && (
+                                        <p className="text-xs text-muted-foreground mt-0.5 ml-6">
+                                          Completed on {new Date(topicData.completedDate).toLocaleDateString()}
+                                        </p>
+                                      )}
+                                    </div>
+
+                                    {/* Actions */}
+                                    <div className="flex items-center gap-1 shrink-0">
+                                      {isUpdating && (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                      )}
+                                      {!isCompleted && !isUpdating && (
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          className="text-xs h-7 px-2"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            markCompleted(cls, topicData.topic);
+                                          }}
+                                        >
+                                          <CheckCircle2 className="h-3 w-3 mr-1" />
+                                          Done
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+
+                              {/* Generate Quiz Button - Shows when unit is completed */}
+                              {unit.completed === unit.total && unit.total > 0 && (
+                                <div className="mt-4 pt-3 border-t">
+                                  {unitQuizzes.has(`${cls.subject}-${unit.unitNumber}`) ? (
+                                    <div className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                                      <div className="flex items-center gap-2">
+                                        <FileQuestion className="h-5 w-5 text-blue-600" />
+                                        <div>
+                                          <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                                            Quiz Generated
+                                          </p>
+                                          <p className="text-xs text-blue-700 dark:text-blue-300">
+                                            {unitQuizzes.get(`${cls.subject}-${unit.unitNumber}`)?.questionCount || 30} questions ready for students
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                                        Active
+                                      </Badge>
+                                    </div>
+                                  ) : (
+                                    <Button
+                                      className="w-full"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleGenerateQuiz(cls, unit);
+                                      }}
+                                      disabled={generatingQuiz === `${cls.subject}-${unit.unitNumber}`}
+                                    >
+                                      {generatingQuiz === `${cls.subject}-${unit.unitNumber}` ? (
+                                        <>
+                                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                          Generating 30 Questions with AI...
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Sparkles className="h-4 w-4 mr-2" />
+                                          Generate Quiz (30 Questions)
+                                        </>
+                                      )}
+                                    </Button>
+                                  )}
                                 </div>
                               )}
-                              {topicData.completedDate && isCompleted && (
-                                <p className="text-xs text-muted-foreground mt-1 ml-6">
-                                  Completed on {new Date(topicData.completedDate).toLocaleDateString()}
-                                </p>
-                              )}
-                            </div>
-
-                            {/* Actions */}
-                            <div className="flex items-center gap-1 shrink-0">
-                              {isUpdating && (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              )}
-                              {!isEditing && !isUpdating && (
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    startEditing(cls.subject, topicIndex, topicData.topic);
-                                  }}
-                                >
-                                  <Pencil className="h-4 w-4" />
-                                </Button>
-                              )}
-                              {!isCompleted && !isUpdating && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="text-xs h-8"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    markCompleted(cls, topicData.topic);
-                                  }}
-                                >
-                                  Complete
-                                </Button>
-                              )}
-                            </div>
-                          </div>
+                            </CollapsibleContent>
+                          </Collapsible>
                         );
                       })}
                     </div>
@@ -519,6 +755,66 @@ export default function UpdateSyllabusPage() {
           );
         })}
       </div>
+
+      {/* Quiz Generated Dialog */}
+      <Dialog open={showQuizDialog} onOpenChange={setShowQuizDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Quiz Generated Successfully!
+            </DialogTitle>
+            <DialogDescription>
+              AI has created a comprehensive assessment for your students.
+            </DialogDescription>
+          </DialogHeader>
+          {generatedQuizInfo && (
+            <div className="space-y-4">
+              <div className="p-4 bg-muted rounded-lg space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Title</span>
+                  <span className="text-sm font-medium">{generatedQuizInfo.title}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Questions</span>
+                  <span className="text-sm font-medium">{generatedQuizInfo.questionCount}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Duration</span>
+                  <span className="text-sm font-medium">45 minutes</span>
+                </div>
+              </div>
+              {generatedQuizInfo.unitSummary && (
+                <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                  <p className="text-sm text-blue-800 dark:text-blue-200">
+                    {generatedQuizInfo.unitSummary}
+                  </p>
+                </div>
+              )}
+              {generatedQuizInfo.topicCoverage && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Topic Coverage:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {generatedQuizInfo.topicCoverage.slice(0, 5).map((tc: any, i: number) => (
+                      <Badge key={i} variant="outline" className="text-xs">
+                        {tc.topic}: {tc.questionCount}
+                      </Badge>
+                    ))}
+                    {generatedQuizInfo.topicCoverage.length > 5 && (
+                      <Badge variant="secondary" className="text-xs">
+                        +{generatedQuizInfo.topicCoverage.length - 5} more
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              )}
+              <p className="text-sm text-muted-foreground">
+                Students can now attempt this quiz from their dashboard. Results will be analyzed by AI.
+              </p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }

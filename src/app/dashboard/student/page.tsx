@@ -1,8 +1,7 @@
 
 'use client';
 
-import { Clock, BookCopy, FileCheck, ArrowRight, Sparkles, AlertCircle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Clock, BookCopy, FileCheck, Sparkles, AlertCircle } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -10,19 +9,12 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/context/auth-context';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useStudentStats } from '@/hooks/use-student-stats';
 
@@ -46,6 +38,7 @@ export default function StudentDashboardPage() {
   const [isClient, setIsClient] = useState(false);
   const { user: authUser } = useAuth();
   const { stats, quizzes, subjectProgress, isLoading } = useStudentStats();
+  const router = useRouter();
 
   useEffect(() => {
     setIsClient(true);
@@ -73,7 +66,7 @@ export default function StudentDashboardPage() {
   }
   
   return (
-    <main className="flex-1 space-y-4 sm:space-y-6 p-3 sm:p-4 md:p-6 animate-fade-in">
+    <main className="flex-1 space-y-4 sm:space-y-6 p-3 sm:p-4 md:p-6 animate-fade-in max-w-6xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
@@ -105,11 +98,16 @@ export default function StudentDashboardPage() {
             stats.map((stat, index) => {
               const Icon = iconMap[stat.icon];
               const colors = colorMap[stat.icon];
+              const destination =
+                stat.title === 'Quizzes Attempted'
+                  ? '/dashboard/student/analysis'
+                  : '/dashboard/student/available-quizzes';
               return (
                 <Card 
                   key={stat.title} 
-                  className="group relative overflow-hidden animate-fade-in"
+                  className="group relative overflow-hidden animate-fade-in cursor-pointer"
                   style={{ animationDelay: `${index * 100}ms` }}
+                  onClick={() => router.push(destination)}
                 >
                   <div className={cn(
                     "absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity duration-300 bg-gradient-to-br",
@@ -136,8 +134,12 @@ export default function StudentDashboardPage() {
         </div>
       </section>
 
-      <section className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">
-        <Card className="animate-fade-in" style={{ animationDelay: '300ms' }}>
+      <section className="grid grid-cols-1 gap-4 sm:gap-6">
+        <Card
+          className="animate-fade-in cursor-pointer"
+          style={{ animationDelay: '300ms' }}
+          onClick={() => router.push('/dashboard/student/learning-path')}
+        >
           <CardHeader className="pb-3">
             <CardTitle className="text-base sm:text-lg">Subject Progress</CardTitle>
             <CardDescription className="text-xs sm:text-sm">Your progress in different subjects.</CardDescription>
@@ -154,7 +156,14 @@ export default function StudentDashboardPage() {
               </div>
             ) : subjectProgress.length > 0 ? (
               subjectProgress.map((item, index) => (
-                <div key={item.subject} className="space-y-2 group">
+                <div
+                  key={item.subject}
+                  className="space-y-2 group"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    router.push('/dashboard/student/learning-path');
+                  }}
+                >
                   <div className="flex justify-between items-center">
                     <span className="text-xs sm:text-sm font-medium">{item.subject}</span>
                     <Badge variant="secondary" className="text-[10px] sm:text-xs">
@@ -175,75 +184,6 @@ export default function StudentDashboardPage() {
               </div>
             )}
           </CardContent>
-        </Card>
-        
-        <Card className="animate-fade-in" style={{ animationDelay: '400ms' }}>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-base sm:text-lg">Available Quizzes</CardTitle>
-                  <CardDescription className="text-xs sm:text-sm">Quizzes you can attempt.</CardDescription>
-                </div>
-                <Badge className="bg-primary/10 text-primary hover:bg-primary/20">
-                  {quizzes.length} available
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="space-y-2">
-                  {[1, 2, 3].map((i) => (
-                    <Skeleton key={i} className="h-12 w-full" />
-                  ))}
-                </div>
-              ) : quizzes.length > 0 ? (
-                <div className="rounded-lg border overflow-hidden">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-muted/50">
-                        <TableHead className="font-semibold">Quiz</TableHead>
-                        <TableHead className="hidden sm:table-cell font-semibold">Subject</TableHead>
-                        <TableHead className="text-right font-semibold">Action</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {quizzes.slice(0, 5).map((quiz, index) => (
-                        <TableRow 
-                          key={quiz.id} 
-                          className="group cursor-pointer animate-fade-in"
-                          style={{ animationDelay: `${(index + 5) * 50}ms` }}
-                        >
-                          <TableCell>
-                            <div className="flex flex-col">
-                              <span className="font-medium">{quiz.title}</span>
-                              <span className="text-xs text-muted-foreground sm:hidden">{quiz.subject}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="hidden sm:table-cell">
-                            <Badge variant="outline">{quiz.subject}</Badge>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              className="group/btn transition-all hover:bg-primary hover:text-primary-foreground"
-                            >
-                              <span className="hidden sm:inline">Start Quiz</span>
-                              <span className="sm:hidden">Start</span>
-                              <ArrowRight className="ml-1 h-3 w-3 transition-transform group-hover/btn:translate-x-1" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              ) : (
-                <div className="text-center py-8 text-muted-foreground text-sm">
-                  No quizzes available at the moment.
-                </div>
-              )}
-            </CardContent>
         </Card>
       </section>
     </main>

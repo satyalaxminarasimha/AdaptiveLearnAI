@@ -39,6 +39,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!Number.isInteger(numberOfQuestions) || numberOfQuestions < 5 || numberOfQuestions > 20) {
+      return NextResponse.json(
+        { error: 'Number of questions must be between 5 and 20' },
+        { status: 400 }
+      );
+    }
+
     const existingQuiz = await Quiz.findOne({
       subject,
       batch,

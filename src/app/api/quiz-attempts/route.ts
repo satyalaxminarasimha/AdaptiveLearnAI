@@ -4,6 +4,7 @@ import QuizAttempt from '@/models/QuizAttempt';
 import Quiz from '@/models/Quiz';
 import WeakArea from '@/models/WeakArea';
 import User from '@/models/User';
+import StudentRanking from '@/models/StudentRanking';
 import { verifyToken } from '@/lib/auth';
 import { analyzeQuizPerformance } from '@/ai/flows/analyze-quiz-performance';
 
@@ -210,6 +211,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    await updateStudentRankingAndRanks(student);
+
     return NextResponse.json({
       _id: attempt._id,
       score,
@@ -227,5 +230,79 @@ export async function POST(request: NextRequest) {
       { error: 'Internal server error' },
       { status: 500 }
     );
+  }
+}
+
+async function updateStudentRankingAndRanks(student: { _id: string; batch?: string; section?: string; branch?: string }) {
+  const attempts = await QuizAttempt.find({ studentId: student._id })
+    .populate('quizId', 'subject')
+    .sort({ attemptedAt: 1 });
+
+  if (attempts.length === 0) {
+    return;
+  }
+
+  const totalScore = attempts.reduce((sum, a) => sum + (a.percentage || 0), 0);
+  const averageScore = totalScore / attempts.length;
+  const quizzesPassed = attempts.filter(a => a.status === 'pass').length;
+
+  const subjectMap: Record<string, { total: number; count: number }> = {};
+  for (const attempt of attempts) {
+    const subject = (attempt.quizId as unknown as { subject: string })?.subject || 'Unknown';
+    if (!subjectMap[subject]) {
+      subjectMap[subject] = { total: 0, count: 0 };
+    }
+    subjectMap[subject].total += attempt.percentage || 0;
+    subjectMap[subject].count += 1;
+  }
+
+  const subjectScores = Object.entries(subjectMap).map(([subject, data]) => ({
+    subject,
+    totalScore: data.total,
+    averageScore: data.total / data.count,
+    quizzesAttempted: data.count,
+    rank: 0,
+  }));
+
+  await StudentRanking.findOneAndUpdate(
+    { studentId: student._id },
+    {
+      studentId: student._id,
+      batch: student.batch || '',
+      section: student.section || '',
+      branch: student.branch || 'CSM',
+      totalScore,
+      averageScore,
+      quizzesAttempted: attempts.length,
+      quizzesPassed,
+      subjectScores,
+      lastActivityDate: attempts[attempts.length - 1]?.attemptedAt,
+    },
+    { upsert: true, new: true }
+  );
+
+  const allRankings = await StudentRanking.find().sort({ averageScore: -1 });
+  for (let i = 0; i < allRankings.length; i++) {
+    allRankings[i].overallRank = i + 1;
+    await allRankings[i].save();
+  }
+
+  const batches = [...new Set(allRankings.map(r => r.batch))];
+  for (const batch of batches) {
+    const batchRankings = await StudentRanking.find({ batch }).sort({ averageScore: -1 });
+    for (let i = 0; i < batchRankings.length; i++) {
+      batchRankings[i].batchRank = i + 1;
+      await batchRankings[i].save();
+    }
+  }
+
+  const classes = [...new Set(allRankings.map(r => `${r.batch}-${r.section}`))];
+  for (const cls of classes) {
+    const [batch, section] = cls.split('-');
+    const classRankings = await StudentRanking.find({ batch, section }).sort({ averageScore: -1 });
+    for (let i = 0; i < classRankings.length; i++) {
+      classRankings[i].classRank = i + 1;
+      await classRankings[i].save();
+    }
   }
 }

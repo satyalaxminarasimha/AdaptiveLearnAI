@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useAuth } from '@/context/auth-context';
+import { useStudentSession } from '@/context/student-session-context';
 import { Trophy, Medal, Award, TrendingUp, Loader2, Crown, Star, Flame } from 'lucide-react';
 
 interface StudentRanking {
@@ -43,15 +44,41 @@ export default function RankingsPage() {
   const [activeTab, setActiveTab] = useState('class');
   const [selectedSubject, setSelectedSubject] = useState<string>('all');
   const { user } = useAuth();
+  const { session } = useStudentSession();
 
   useEffect(() => {
     fetchRankings();
-  }, [activeTab]);
+  }, [activeTab, selectedSubject, session?.batch, session?.section]);
 
   const fetchRankings = async () => {
     try {
+      setIsLoading(true);
+      if ((activeTab === 'class' || activeTab === 'batch') && !session?.batch) {
+        setRankings([]);
+        return;
+      }
+      if (activeTab === 'class' && !session?.section) {
+        setRankings([]);
+        return;
+      }
+
       const token = localStorage.getItem('token');
-      const res = await fetch(`/api/rankings?type=${activeTab}&limit=50`, {
+      const params = new URLSearchParams({
+        type: activeTab,
+        limit: '50',
+      });
+      if (activeTab === 'class') {
+        params.set('batch', session?.batch || '');
+        params.set('section', session?.section || '');
+      }
+      if (activeTab === 'batch') {
+        params.set('batch', session?.batch || '');
+      }
+      if (selectedSubject !== 'all') {
+        params.set('subject', selectedSubject);
+      }
+
+      const res = await fetch(`/api/rankings?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -91,7 +118,8 @@ export default function RankingsPage() {
     : [];
 
   // Get current user's ranking
-  const myRanking = rankings.find(r => r.studentId._id === user?.id);
+  const myUserId = user?.id || user?._id;
+  const myRanking = rankings.find(r => r.studentId._id === myUserId);
 
   if (isLoading) {
     return (

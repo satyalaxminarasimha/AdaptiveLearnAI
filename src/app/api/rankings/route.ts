@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
       if (attempts.length === 0) continue;
 
       // Calculate scores
-      const totalScore = attempts.reduce((sum, a) => sum + a.score, 0);
+      const totalScore = attempts.reduce((sum, a) => sum + (a.percentage || 0), 0);
       const averageScore = totalScore / attempts.length;
       const quizzesPassed = attempts.filter(a => a.status === 'pass').length;
 
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
         if (!subjectMap[subject]) {
           subjectMap[subject] = { total: 0, count: 0 };
         }
-        subjectMap[subject].total += attempt.score;
+        subjectMap[subject].total += attempt.percentage || 0;
         subjectMap[subject].count += 1;
       }
 

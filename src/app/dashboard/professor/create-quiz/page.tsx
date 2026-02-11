@@ -23,6 +23,7 @@ export default function CreateQuizPage() {
   const [selectedTopic, setSelectedTopic] = useState<string>('');
   const [difficulty, setDifficulty] = useState<string>('medium');
   const [passPercentage, setPassPercentage] = useState<string>('60');
+  const [questionCount, setQuestionCount] = useState<string>('5');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { selectedClass, setSelectedClass, availableClasses, isLoading } = useProfessorSession();
   const [topicsForSubject, setTopicsForSubject] = useState<string[]>([]);
@@ -97,6 +98,16 @@ export default function CreateQuizPage() {
       return;
     }
 
+    const parsedQuestionCount = parseInt(questionCount, 10);
+    if (Number.isNaN(parsedQuestionCount) || parsedQuestionCount < 5 || parsedQuestionCount > 20) {
+      toast({
+        variant: 'destructive',
+        title: 'Invalid Question Count',
+        description: 'Please choose between 5 and 20 questions.',
+      });
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -118,7 +129,7 @@ export default function CreateQuizPage() {
           section: selectedClass.section,
           semester: selectedClass.semester,
           difficulty: difficulty || 'medium',
-          numberOfQuestions: 5,
+          numberOfQuestions: parsedQuestionCount,
         }),
       });
 
@@ -136,6 +147,7 @@ export default function CreateQuizPage() {
         setDate(undefined);
         setDifficulty('medium');
         setPassPercentage('60');
+        setQuestionCount('5');
       } else {
         const data = await response.json();
         throw new Error(data.error || 'Failed to save quiz');
@@ -187,7 +199,7 @@ export default function CreateQuizPage() {
             <div>
               <CardTitle className="text-lg sm:text-xl md:text-2xl">Log Syllabus Topic</CardTitle>
               <CardDescription className="text-xs sm:text-sm mt-0.5">
-                Adding a topic will automatically generate a 5-question quiz.
+                Adding a topic will automatically generate a quiz between 5 and 20 questions.
               </CardDescription>
             </div>
           </div>
@@ -322,16 +334,31 @@ export default function CreateQuizPage() {
                 </Select>
               </div>
             </div>
-             <div className="space-y-1.5 sm:space-y-2">
-              <Label htmlFor="pass-percentage" className="text-xs sm:text-sm">Pass Percentage (%)</Label>
-              <Input 
-                id="pass-percentage" 
-                type="number" 
-                placeholder="e.g., 60" 
-                className="text-sm"
-                value={passPercentage}
-                onChange={(e) => setPassPercentage(e.target.value)}
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label htmlFor="question-count" className="text-xs sm:text-sm">Number of Questions</Label>
+                <Input
+                  id="question-count"
+                  type="number"
+                  min={5}
+                  max={20}
+                  className="text-sm"
+                  value={questionCount}
+                  onChange={(e) => setQuestionCount(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">Min 5, max 20</p>
+              </div>
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label htmlFor="pass-percentage" className="text-xs sm:text-sm">Pass Percentage (%)</Label>
+                <Input 
+                  id="pass-percentage" 
+                  type="number" 
+                  placeholder="e.g., 60" 
+                  className="text-sm"
+                  value={passPercentage}
+                  onChange={(e) => setPassPercentage(e.target.value)}
+                />
+              </div>
             </div>
             <Button 
               size="lg" 

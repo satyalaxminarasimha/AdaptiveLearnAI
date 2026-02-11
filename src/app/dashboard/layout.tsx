@@ -13,7 +13,6 @@ import {
   FileCheck,
   FileEdit,
   FilePen,
-  FileText,
   LayoutDashboard,
   ListChecks,
   LogOut,
@@ -348,32 +347,6 @@ const StudentNav = () => {
         >
           <BarChart2 className="transition-transform group-hover:scale-110" />
           Analysis
-        </SidebarMenuButton>
-      </SidebarMenuItem>
-       <SidebarMenuItem>
-        <SidebarMenuButton 
-          href="/dashboard/student/reviews" 
-          tooltip="Reviews"
-          className={cn(
-            "transition-all duration-200",
-            pathname === '/dashboard/student/reviews' && "bg-sidebar-accent text-sidebar-accent-foreground"
-          )}
-        >
-          <FileText className="transition-transform group-hover:scale-110" />
-          Reviews
-        </SidebarMenuButton>
-      </SidebarMenuItem>
-      <SidebarMenuItem>
-        <SidebarMenuButton 
-          href="/dashboard/student/weak-areas" 
-          tooltip="Weak Areas"
-          className={cn(
-            "transition-all duration-200",
-            pathname === '/dashboard/student/weak-areas' && "bg-sidebar-accent text-sidebar-accent-foreground"
-          )}
-        >
-          <AlertTriangle className="transition-transform group-hover:scale-110" />
-          Weak Areas
         </SidebarMenuButton>
       </SidebarMenuItem>
       <SidebarMenuItem>

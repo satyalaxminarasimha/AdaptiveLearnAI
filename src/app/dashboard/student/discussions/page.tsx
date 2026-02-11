@@ -114,37 +114,6 @@ export default function StudentPublicChatPage() {
     }
   };
 
-  // Create class discussion room for student's batch/section if it doesn't exist
-  const createClassRoom = async () => {
-    if (!session?.batch || !session?.section) return;
-    
-    try {
-      const token = localStorage.getItem('token');
-      const res = await fetch('/api/public-chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          roomType: 'class',
-          batch: session.batch,
-          section: session.section,
-        }),
-      });
-
-      if (res.ok) {
-        fetchChatRooms();
-        toast({
-          title: 'Success',
-          description: 'Class discussion room created!',
-        });
-      }
-    } catch (error) {
-      console.error('Failed to create class room:', error);
-    }
-  };
-
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || !selectedRoom) return;
@@ -251,14 +220,7 @@ export default function StudentPublicChatPage() {
                     <div className="p-6 text-center text-muted-foreground">
                       <MessageCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
                       <p className="mb-2">No chat rooms available</p>
-                      {activeTab === 'class' && (
-                        <Button variant="outline" size="sm" onClick={createClassRoom}>
-                          Create Class Discussion
-                        </Button>
-                      )}
-                      {activeTab === 'subject' && (
-                        <p className="text-sm">Ask your professor to create a subject discussion forum.</p>
-                      )}
+                      <p className="text-sm">Only professors can create discussion forums.</p>
                     </div>
                   ) : (
                     <div className="divide-y">

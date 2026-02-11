@@ -80,8 +80,8 @@ export async function GET(request: NextRequest) {
       agg.totalStudents++;
       if (wa.status === 'critical') agg.criticalCount++;
       if (wa.status === 'needs_work') agg.needsWorkCount++;
-      wa.subtopics?.forEach(s => agg.subtopics.add(s));
-      wa.prerequisites?.forEach(p => agg.prerequisites.add(p));
+      wa.subtopics?.forEach((s: string) => agg.subtopics.add(s));
+      wa.prerequisites?.forEach((p: string) => agg.prerequisites.add(p));
     });
 
     // Convert to array and sort by total students struggling

@@ -159,6 +159,38 @@ export function AiChatTutor({ user }: { user: CurrentUser }) {
       // For actual questions, call the AI endpoint
       const userRole = authUser?.role || 'student';
 
+      // Fetch real user data for context
+      let studentQuizHistory = '';
+      let weakAreas = '';
+      
+      if (userRole === 'student') {
+        try {
+          // Fetch quiz attempts for context
+          const quizResponse = await fetch('/api/quiz-attempts?limit=5');
+          if (quizResponse.ok) {
+            const quizData = await quizResponse.json();
+            if (quizData.length > 0) {
+              studentQuizHistory = quizData.slice(0, 5).map((attempt: any) => 
+                `${attempt.quizId?.title || 'Quiz'}: ${attempt.percentage}% (${attempt.status})`
+              ).join(', ');
+            }
+          }
+          
+          // Fetch weak areas for context
+          const weakAreasResponse = await fetch('/api/weak-areas');
+          if (weakAreasResponse.ok) {
+            const weakAreasData = await weakAreasResponse.json();
+            if (weakAreasData.weakAreas?.length > 0) {
+              weakAreas = weakAreasData.weakAreas.slice(0, 5).map((wa: any) => 
+                `${wa.topic} (${wa.subject}) - ${wa.status}`
+              ).join(', ');
+            }
+          }
+        } catch (fetchError) {
+          console.log('Could not fetch user context data');
+        }
+      }
+
       const response = await fetch('/api/ai-chat', {
         method: 'POST',
         headers: {
@@ -168,9 +200,9 @@ export function AiChatTutor({ user }: { user: CurrentUser }) {
           question: input,
           userRole: userRole,
           userName: authUser?.name || user.name,
-          studentQuizHistory: 'Recent quiz performance analysis',
-          subjectSyllabus: 'Current subject material',
-          weakAreas: 'Topics to focus on',
+          studentQuizHistory: studentQuizHistory || 'No quiz history available yet',
+          subjectSyllabus: `${authUser?.batch || ''} ${authUser?.section || ''} curriculum`,
+          weakAreas: weakAreas || 'No specific weak areas identified yet',
           difficultyLevel: 'medium',
         }),
       });

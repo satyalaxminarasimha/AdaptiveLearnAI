@@ -378,6 +378,19 @@ const StudentNav = () => {
       </SidebarMenuItem>
       <SidebarMenuItem>
         <SidebarMenuButton 
+          href="/dashboard/student/learning-path" 
+          tooltip="Learning Path"
+          className={cn(
+            "transition-all duration-200",
+            pathname === '/dashboard/student/learning-path' && "bg-sidebar-accent text-sidebar-accent-foreground"
+          )}
+        >
+          <BrainCircuit className="transition-transform group-hover:scale-110" />
+          Learning Path
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+      <SidebarMenuItem>
+        <SidebarMenuButton 
           href="/dashboard/student/rankings" 
           tooltip="Rankings"
           className={cn(

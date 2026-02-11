@@ -17,7 +17,6 @@ import { useProfessorSession } from '@/context/professor-session-context';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/auth-context';
-import { generateQuizFromSyllabus } from '@/ai/flows/generate-quiz-from-syllabus';
 
 export default function CreateQuizPage() {
   const [date, setDate] = useState<Date>();
@@ -25,23 +24,37 @@ export default function CreateQuizPage() {
   const [difficulty, setDifficulty] = useState<string>('medium');
   const [passPercentage, setPassPercentage] = useState<string>('60');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { selectedClass, isLoading } = useProfessorSession();
+  const { selectedClass, setSelectedClass, availableClasses, isLoading } = useProfessorSession();
   const [topicsForSubject, setTopicsForSubject] = useState<string[]>([]);
   const [topicsLoading, setTopicsLoading] = useState(true);
   const { toast } = useToast();
   const { user } = useAuth();
 
   useEffect(() => {
+    if (!selectedClass && availableClasses.length === 1) {
+      setSelectedClass(availableClasses[0]);
+    }
+  }, [availableClasses, selectedClass, setSelectedClass]);
+
+  useEffect(() => {
     const fetchTopics = async () => {
       if (!selectedClass) {
+        setTopicsForSubject([]);
         setTopicsLoading(false);
         return;
       }
 
       try {
         const token = localStorage.getItem('token');
+        const params = new URLSearchParams({
+          batch: selectedClass.batch,
+          section: selectedClass.section,
+        });
+        if (selectedClass.year) params.set('year', selectedClass.year);
+        if (selectedClass.semester) params.set('semester', selectedClass.semester);
+
         const response = await fetch(
-          `/api/syllabus?batch=${selectedClass.batch}&section=${selectedClass.section}`,
+          `/api/syllabus?${params.toString()}`,
           { headers: { 'Authorization': `Bearer ${token}` } }
         );
         
@@ -52,17 +65,24 @@ export default function CreateQuizPage() {
             const subject = syllabus.subjects?.find((s: any) => s.name === selectedClass.subject);
             if (subject && subject.topics) {
               setTopicsForSubject(subject.topics.map((t: any) => t.topic || t));
+            } else {
+              setTopicsForSubject([]);
             }
           }
         }
       } catch (err) {
         console.error('Error fetching topics:', err);
+        setTopicsForSubject([]);
       } finally {
         setTopicsLoading(false);
       }
     };
 
     fetchTopics();
+  }, [selectedClass]);
+
+  useEffect(() => {
+    setSelectedTopic('');
   }, [selectedClass]);
 
   const handleSubmit = async (e: React.MouseEvent) => {
@@ -80,28 +100,9 @@ export default function CreateQuizPage() {
     setIsSubmitting(true);
 
     try {
-      // Generate quiz using AI
-      const aiResult = await generateQuizFromSyllabus({
-        syllabusTopic: selectedTopic,
-        difficultyLevel: difficulty || 'medium',
-        numberOfQuestions: 5,
-      });
-
-      // Format questions for the API - convert correctAnswer string to index
-      const formattedQuestions = aiResult.quizQuestions.map((q, index) => {
-        // Find the index of the correct answer in options
-        const correctIndex = q.options.findIndex(opt => opt === q.correctAnswer);
-        return {
-          question: q.question,
-          options: q.options,
-          correctAnswer: correctIndex >= 0 ? correctIndex : 0,
-          points: 20, // 5 questions = 100 points total
-        };
-      });
-
-      // Save quiz to database
+      // Generate and save quiz on the server
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/quizzes', {
+      const response = await fetch('/api/quizzes/generate-topic', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -110,21 +111,24 @@ export default function CreateQuizPage() {
         body: JSON.stringify({
           title: `${selectedClass.subject} - ${selectedTopic}`,
           subject: selectedClass.subject,
-          topics: [selectedTopic],
-          questions: formattedQuestions,
-          createdBy: user._id,
+          topic: selectedTopic,
           dueDate: date?.toISOString(),
           passPercentage: parseInt(passPercentage) || 60,
           batch: selectedClass.batch,
           section: selectedClass.section,
+          semester: selectedClass.semester,
           difficulty: difficulty || 'medium',
+          numberOfQuestions: 5,
         }),
       });
 
       if (response.ok) {
+        const data = await response.json();
+        const questionCount = data?.quiz?.questionCount || 5;
+
         toast({
           title: 'Quiz Created!',
-          description: `Successfully generated a ${formattedQuestions.length}-question quiz for "${selectedTopic}".`,
+          description: `Successfully generated a ${questionCount}-question quiz for "${selectedTopic}".`,
         });
         
         // Reset form
@@ -203,13 +207,46 @@ export default function CreateQuizPage() {
         <CardContent>
           <form className="space-y-4 sm:space-y-6">
             <div className="space-y-1.5 sm:space-y-2">
-              <Label htmlFor="course" className="text-xs sm:text-sm">Course</Label>
-               <Input 
-                id="course" 
-                value={selectedClass?.subject || 'Loading...'} 
-                disabled 
-                className="text-sm bg-muted/50"
-              />
+              <Label htmlFor="course" className="text-xs sm:text-sm">Class</Label>
+              {availableClasses.length > 0 ? (
+                <Select
+                  value={
+                    selectedClass
+                      ? `${selectedClass.subject}||${selectedClass.batch}||${selectedClass.section}`
+                      : ''
+                  }
+                  onValueChange={(value) => {
+                    const [subject, batch, section] = value.split('||');
+                    const found = availableClasses.find(
+                      (cls) => cls.subject === subject && cls.batch === batch && cls.section === section
+                    );
+                    setSelectedClass(found || null);
+                    setSelectedTopic('');
+                  }}
+                >
+                  <SelectTrigger id="course" className="text-sm">
+                    <SelectValue placeholder="Select a class" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableClasses.map((cls) => (
+                      <SelectItem
+                        key={`${cls.subject}-${cls.batch}-${cls.section}`}
+                        value={`${cls.subject}||${cls.batch}||${cls.section}`}
+                        className="text-sm"
+                      >
+                        {cls.subject} - Batch {cls.batch} Section {cls.section}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  id="course"
+                  value="No classes found. Add a class first."
+                  disabled
+                  className="text-sm bg-muted/50"
+                />
+              )}
             </div>
             <div className="space-y-1.5 sm:space-y-2">
               <Label htmlFor="topic" className="text-xs sm:text-sm">Topic</Label>
@@ -223,6 +260,11 @@ export default function CreateQuizPage() {
                     ))}
                 </SelectContent>
               </Select>
+              {!topicsLoading && selectedClass && topicsForSubject.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  No topics found for this subject. Update the syllabus to add topics.
+                </p>
+              )}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
               <div className="space-y-1.5 sm:space-y-2">

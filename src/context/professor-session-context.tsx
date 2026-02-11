@@ -8,6 +8,7 @@ export type ProfessorClass = {
   section: string;
   subject: string;
   semester?: string;
+  year?: string;
 };
 
 type SessionContextType = {

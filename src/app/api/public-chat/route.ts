@@ -54,6 +54,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    if (payload.role !== 'professor') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     await dbConnect();
 
     const body = await request.json();
@@ -77,7 +81,7 @@ export async function POST(request: NextRequest) {
       batch,
       section,
       subject,
-      professorId: payload.role === 'professor' ? payload.userId : undefined,
+      professorId: payload.userId,
       messages: [],
       participants: [payload.userId],
       isActive: true,

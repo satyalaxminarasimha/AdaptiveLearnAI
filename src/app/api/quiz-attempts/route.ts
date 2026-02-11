@@ -124,7 +124,16 @@ export async function POST(request: NextRequest) {
         unitName: quiz.unitName || 'General',
         totalQuestions,
         score,
-        questionResults: questionResults.map(qr => ({
+        questionResults: questionResults.map((qr: {
+          question: string;
+          topic: string;
+          subtopic: string;
+          prerequisites: string[];
+          difficulty: string;
+          isCorrect: boolean;
+          selectedAnswer: number;
+          correctAnswer: number;
+        }) => ({
           question: qr.question,
           topic: qr.topic,
           subtopic: qr.subtopic,
@@ -182,7 +191,7 @@ export async function POST(request: NextRequest) {
     const updatedAttempt = await QuizAttempt.findById(attempt._id);
 
     // Save weak areas to database for teacher dashboard
-    if (performanceAnalysis?.weakAreas?.length > 0) {
+    if (performanceAnalysis?.weakAreas && performanceAnalysis.weakAreas.length > 0) {
       for (const weakArea of performanceAnalysis.weakAreas) {
         await WeakArea.findOneAndUpdate(
           { studentId: payload.userId, subject: quiz.subject, topic: weakArea.topic },

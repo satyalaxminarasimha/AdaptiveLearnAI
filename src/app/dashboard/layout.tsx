@@ -377,6 +377,19 @@ const StudentNav = () => {
       </SidebarMenuItem>
       <SidebarMenuItem>
         <SidebarMenuButton 
+          href="/dashboard/student/attempted-quizzes" 
+          tooltip="Attempted Quizzes"
+          className={cn(
+            "transition-all duration-200",
+            pathname.startsWith('/dashboard/student/attempted-quizzes') && "bg-sidebar-accent text-sidebar-accent-foreground"
+          )}
+        >
+          <BookCheck className="transition-transform group-hover:scale-110" />
+          Quiz History
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+      <SidebarMenuItem>
+        <SidebarMenuButton 
           href="/dashboard/student/discussions" 
           tooltip="Discussions"
           className={cn(

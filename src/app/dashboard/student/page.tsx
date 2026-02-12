@@ -1,7 +1,7 @@
 
 'use client';
 
-import { Clock, BookCopy, FileCheck, Sparkles, AlertCircle } from 'lucide-react';
+import { Clock, BookCopy, FileCheck, Sparkles, AlertCircle, History } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -24,12 +24,14 @@ const iconMap: { [key: string]: React.ElementType } = {
   BookCopy,
   FileCheck,
   Clock,
+  History,
 };
 
 const colorMap: { [key: string]: { bg: string; text: string; icon: string } } = {
   BookCopy: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-600 dark:text-blue-400', icon: 'from-blue-500 to-blue-600' },
   FileCheck: { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-600 dark:text-green-400', icon: 'from-green-500 to-green-600' },
   Clock: { bg: 'bg-orange-100 dark:bg-orange-900/30', text: 'text-orange-600 dark:text-orange-400', icon: 'from-orange-500 to-orange-600' },
+  History: { bg: 'bg-purple-100 dark:bg-purple-900/30', text: 'text-purple-600 dark:text-purple-400', icon: 'from-purple-500 to-purple-600' },
 };
 
 const progressColors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-orange-500', 'bg-pink-500'];
@@ -136,8 +138,31 @@ export default function StudentDashboardPage() {
 
       <section className="grid grid-cols-1 gap-4 sm:gap-6">
         <Card
-          className="animate-fade-in cursor-pointer"
+          className="animate-fade-in cursor-pointer group border-purple-200 dark:border-purple-900/50"
           style={{ animationDelay: '300ms' }}
+          onClick={() => router.push('/dashboard/student/attempted-quizzes')}
+        >
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+                  <History className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                  Quiz History & Review
+                </CardTitle>
+                <CardDescription className="text-xs sm:text-sm">
+                  View your attempted quizzes with detailed explanations powered by AI.
+                </CardDescription>
+              </div>
+              <div className="text-right">
+                <Sparkles className="h-5 w-5 text-purple-600 dark:text-purple-400 group-hover:animate-spin" />
+              </div>
+            </div>
+          </CardHeader>
+        </Card>
+
+        <Card
+          className="animate-fade-in cursor-pointer"
+          style={{ animationDelay: '400ms' }}
           onClick={() => router.push('/dashboard/student/learning-path')}
         >
           <CardHeader className="pb-3">

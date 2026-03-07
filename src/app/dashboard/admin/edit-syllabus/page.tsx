@@ -1,11 +1,73 @@
+'use client';
+
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Upload, BookOpen, GraduationCap, Layers, FileText, Cloud } from 'lucide-react';
+import { Upload, BookOpen, GraduationCap, Layers, FileText, Cloud, Loader2 } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { detailedSyllabus } from '@/lib/mock-data';
 import { Badge } from '@/components/ui/badge';
 
+interface Subject {
+  name: string;
+  code: string;
+  credits: number;
+  topics: string[];
+}
+
+type SyllabusData = Record<string, Record<string, Subject[]>>;
+
 export default function EditSyllabusPage() {
+  const [syllabus, setSyllabus] = useState<SyllabusData>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchSyllabus = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch('/api/admin/syllabus', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch syllabus');
+        }
+
+        const data = await response.json();
+        setSyllabus(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load syllabus');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSyllabus();
+  }, []);
+
+  if (loading) {
+    return (
+      <main className="flex-1 flex items-center justify-center p-4 md:p-6">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </main>
+    );
+  }
+
+  if (error) {
+    return (
+      <main className="flex-1 flex items-center justify-center p-4 md:p-6">
+        <div className="text-center text-destructive">
+          <p>{error}</p>
+          <Button onClick={() => window.location.reload()} className="mt-4">
+            Retry
+          </Button>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="flex-1 space-y-6 p-4 md:p-6 animate-fade-in">
       <Card className="transition-all duration-300 hover:shadow-lg">
@@ -45,8 +107,15 @@ export default function EditSyllabusPage() {
                   <BookOpen className="h-5 w-5 text-primary" />
                   <h2 className="text-lg sm:text-xl font-semibold">Syllabus Overview</h2>
                 </div>
+                {Object.keys(syllabus).length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <BookOpen className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>No syllabus data available.</p>
+                    <p className="text-sm">Run the seed script to populate syllabus data.</p>
+                  </div>
+                ) : (
                  <Accordion type="multiple" className="w-full space-y-2">
-                    {Object.entries(detailedSyllabus).map(([year, semesters], yearIndex) => (
+                    {Object.entries(syllabus).map(([year, semesters], yearIndex) => (
                         <AccordionItem 
                           value={year} 
                           key={year}
@@ -90,7 +159,7 @@ export default function EditSyllabusPage() {
                                                     <ul className="list-disc space-y-1 sm:space-y-2 pl-4 text-muted-foreground text-xs sm:text-sm">
                                                         {subject.topics.map((topic, topicIndex) => (
                                                             <li 
-                                                              key={topic}
+                                                              key={`${subject.code}-topic-${topicIndex}`}
                                                               className="py-1 transition-colors hover:text-foreground animate-fade-in"
                                                               style={{ animationDelay: `${topicIndex * 30}ms` }}
                                                             >
@@ -110,6 +179,7 @@ export default function EditSyllabusPage() {
                         </AccordionItem>
                     ))}
                     </Accordion>
+                )}
             </div>
         </CardContent>
       </Card>

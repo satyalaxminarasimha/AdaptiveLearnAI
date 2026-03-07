@@ -9,11 +9,9 @@ export async function GET(request: NextRequest) {
 
     // Get user role from token if available
     let userRole: string | null = null;
-    const authHeader = request.headers.get('authorization');
-    if (authHeader?.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
-      const decoded = verifyToken(token);
-      userRole = decoded?.role || null;
+    const decoded = verifyToken(request);
+    if (decoded) {
+      userRole = decoded.role || null;
     }
 
     const { searchParams } = new URL(request.url);

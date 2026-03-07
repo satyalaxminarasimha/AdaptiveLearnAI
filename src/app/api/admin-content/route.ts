@@ -8,15 +8,11 @@ export async function GET(request: NextRequest) {
     await dbConnect();
 
     // Verify admin access
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
+    const decoded = verifyToken(request);
+    if (!decoded) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    const token = authHeader.substring(7);
-    const decoded = verifyToken(token);
-
-    if (!decoded || decoded.role !== 'admin') {
+    if (decoded.role !== 'admin') {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
@@ -47,15 +43,11 @@ export async function POST(request: NextRequest) {
     await dbConnect();
 
     // Verify admin access
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
+    const decoded = verifyToken(request);
+    if (!decoded) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    const token = authHeader.substring(7);
-    const decoded = verifyToken(token);
-
-    if (!decoded || decoded.role !== 'admin') {
+    if (decoded.role !== 'admin') {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
@@ -75,7 +67,7 @@ export async function POST(request: NextRequest) {
       priority: priority || 'medium',
       targetAudience,
       isActive: true,
-      createdBy: decoded.id,
+      createdBy: decoded.userId,
       publishedAt: publishedAt ? new Date(publishedAt) : new Date(),
       expiresAt: expiresAt ? new Date(expiresAt) : null,
     });

@@ -17,6 +17,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useStudentStats } from '@/hooks/use-student-stats';
+import { ContentDisplay } from '@/components/content-display';
 
 export const dynamic = 'force-dynamic';
 
@@ -210,6 +211,18 @@ export default function StudentDashboardPage() {
             )}
           </CardContent>
         </Card>
+      </section>
+
+      {/* Announcements Section */}
+      <section className="stagger-children">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
+          <div className="lg:col-span-2">
+            {/* Existing content can go here if needed */}
+          </div>
+          <div className="lg:col-span-1">
+            <ContentDisplay limit={3} compact={true} />
+          </div>
+        </div>
       </section>
     </main>
   );

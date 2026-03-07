@@ -75,6 +75,9 @@ export default function StudentAnalysisPage() {
     
     setIsLoading(true);
     try {
+      const token = localStorage.getItem('token');
+      const authHeaders = { Authorization: `Bearer ${token}` };
+
       // Fetch rankings
       const rankingParams = new URLSearchParams({
         type: 'class',
@@ -83,8 +86,8 @@ export default function StudentAnalysisPage() {
       });
       
       const [rankingsRes, studentsRes] = await Promise.all([
-        fetch(`/api/rankings?${rankingParams}`),
-        fetch(`/api/students?batch=${selectedClass.batch}${selectedClass.section ? `&section=${selectedClass.section}` : ''}`),
+        fetch(`/api/rankings?${rankingParams}`, { headers: authHeaders }),
+        fetch(`/api/students?batch=${selectedClass.batch}${selectedClass.section ? `&section=${selectedClass.section}` : ''}`, { headers: authHeaders }),
       ]);
       
       if (rankingsRes.ok) {

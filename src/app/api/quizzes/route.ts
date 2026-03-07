@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Quiz from '@/models/Quiz';
+import User from '@/models/User';
 import { verifyToken } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
+    const payload = verifyToken(request);
+    if (!payload) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     await dbConnect();
 
     const { searchParams } = new URL(request.url);
@@ -20,6 +26,13 @@ export async function GET(request: NextRequest) {
     if (subject) query.subject = subject;
     if (batch) query.batch = batch;
     if (section) query.section = section;
+
+    // For students, auto-filter quizzes by their batch and section
+    if (payload.role === 'student') {
+      const student = await User.findById(payload.userId).select('batch section');
+      if (student?.batch) query.batch = student.batch;
+      if (student?.section) query.section = student.section;
+    }
 
     const quizzes = await Quiz.find(query).populate('createdBy', 'name').sort({ createdAt: -1 });
 

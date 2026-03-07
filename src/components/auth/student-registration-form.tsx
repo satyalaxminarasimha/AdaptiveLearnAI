@@ -3,6 +3,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
+import { useEffect } from 'react';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import {
@@ -86,6 +87,29 @@ export function StudentRegistrationForm() {
     defaultValues,
     mode: 'onChange',
   });
+
+  // Auto-calculate current semester from batch year
+  useEffect(() => {
+    const subscription = form.watch((value, { name }) => {
+      if (name === 'year') {
+        const batchYear = Number(value.year || 0);
+        if (!batchYear || Number.isNaN(batchYear)) return;
+        const now = new Date();
+        // Academic year assumed to start in July/August. If current month >= July, we are in first semester of academic year.
+        const month = now.getMonth(); // 0-based
+        const academicStartYear = month >= 6 ? now.getFullYear() : now.getFullYear() - 1;
+        const yearsPassed = Math.max(0, academicStartYear - batchYear);
+        // Semester number = yearsPassed * 2 + (currently in first or second sem of academic year)
+        const inSecondSemester = month >= 0 && month <= 4; // Jan - May considered second semester
+        let computed = yearsPassed * 2 + (inSecondSemester ? 2 : 1);
+        if (computed < 1) computed = 1;
+        if (computed > 8) computed = 8;
+        form.setValue('semester', computed);
+      }
+    });
+
+    return () => subscription.unsubscribe && subscription.unsubscribe();
+  }, [form]);
 
   async function onSubmit(data: StudentFormValues) {
     try {

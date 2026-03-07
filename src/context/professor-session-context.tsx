@@ -60,11 +60,31 @@ export function ProfessorSessionProvider({ children }: { children: ReactNode }) 
       try {
         const item = window.localStorage.getItem('professorClass');
         if (item) {
-          setSelectedClassState(JSON.parse(item));
+          const parsed = JSON.parse(item) as ProfessorClass;
+          // Auto-normalize stale batch format: "2022 - 2023" → "2022"
+          if (parsed.batch && parsed.batch.includes(' - ')) {
+            parsed.batch = parsed.batch.split(' - ')[0].trim();
+            window.localStorage.setItem('professorClass', JSON.stringify(parsed));
+          }
+          setSelectedClassState(parsed);
         }
         
-        // Fetch available classes
-        await refreshClasses();
+        // Fetch available classes (this also normalizes DB records)
+        const classes = await refreshClasses();
+        
+        // If selected class batch was stale, re-validate against refreshed list
+        const storedItem = window.localStorage.getItem('professorClass');
+        if (storedItem && classes.length > 0) {
+          const stored = JSON.parse(storedItem) as ProfessorClass;
+          const match = classes.find(
+            (c: ProfessorClass) => c.subject === stored.subject && c.batch === stored.batch && c.section === stored.section
+          );
+          if (!match) {
+            // Selected class no longer exists with that exact data, pick first available
+            setSelectedClassState(classes[0]);
+            window.localStorage.setItem('professorClass', JSON.stringify(classes[0]));
+          }
+        }
       } catch (error) {
         console.error("Failed to parse professor class from localStorage", error);
         setSelectedClassState(null);

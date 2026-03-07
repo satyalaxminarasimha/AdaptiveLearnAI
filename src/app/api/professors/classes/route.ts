@@ -22,7 +22,22 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Professor not found' }, { status: 404 });
     }
 
-    return NextResponse.json(professor.classesTeaching || []);
+    // Normalize batch format on read: "2022 - 2023" → "2022"
+    let needsSave = false;
+    const classes = (professor.classesTeaching || []).map((c: any) => {
+      if (c.batch && c.batch.includes(' - ')) {
+        c.batch = c.batch.split(' - ')[0].trim();
+        needsSave = true;
+      }
+      return c;
+    });
+    // Persist the fix so it only happens once
+    if (needsSave) {
+      professor.classesTeaching = classes;
+      await professor.save();
+    }
+
+    return NextResponse.json(classes);
   } catch (error) {
     console.error('Get professor classes error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -69,6 +84,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Normalize batch to year-only format (e.g., "2022 - 2023" → "2022")
+    const normalizedBatch = batch.includes(' - ') ? batch.split(' - ')[0].trim() : batch.trim();
+
     const professor = await User.findById(payload.userId);
     if (!professor) {
       return NextResponse.json({ error: 'Professor not found' }, { status: 404 });
@@ -82,7 +100,7 @@ export async function POST(request: NextRequest) {
     // Check if class already exists
     const existingClass = professor.classesTeaching.find(
       (c: { subject: string; batch: string; section: string }) => 
-        c.subject === subject && c.batch === batch && c.section === section
+        c.subject === subject && c.batch === normalizedBatch && c.section === section
     );
 
     if (existingClass) {
@@ -98,7 +116,7 @@ export async function POST(request: NextRequest) {
       subjectCode: subjectCode || '',
       program: program || 'CSE(AI&ML)',
       course: course || 'B.TECH',
-      batch, 
+      batch: normalizedBatch, 
       semester: semester || '1',
       section,
       year: year || 1,
@@ -147,15 +165,20 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
+    // Normalize batch format
+    const normalizedBatch = batch.includes(' - ') ? batch.split(' - ')[0].trim() : batch.trim();
+
     const professor = await User.findById(payload.userId);
     if (!professor) {
       return NextResponse.json({ error: 'Professor not found' }, { status: 404 });
     }
 
-    // Find and update the class
+    // Find and update the class (match both old and new batch format)
     const classIndex = professor.classesTeaching?.findIndex(
-      (c: { subject: string; batch: string; section: string }) => 
-        c.subject === subject && c.batch === batch && c.section === section
+      (c: { subject: string; batch: string; section: string }) => {
+        const cBatch = c.batch?.includes(' - ') ? c.batch.split(' - ')[0].trim() : c.batch;
+        return c.subject === subject && cBatch === normalizedBatch && c.section === section;
+      }
     );
 
     if (classIndex === -1 || classIndex === undefined) {
@@ -198,15 +221,20 @@ export async function DELETE(request: NextRequest) {
     const body = await request.json();
     const { subject, batch, section } = body;
 
+    // Normalize batch format
+    const normalizedBatch = batch?.includes(' - ') ? batch.split(' - ')[0].trim() : (batch || '').trim();
+
     const professor = await User.findById(payload.userId);
     if (!professor) {
       return NextResponse.json({ error: 'Professor not found' }, { status: 404 });
     }
 
-    // Filter out the class to remove
+    // Filter out the class to remove (match both old and new batch format)
     professor.classesTeaching = professor.classesTeaching?.filter(
-      (c: { subject: string; batch: string; section: string }) => 
-        !(c.subject === subject && c.batch === batch && c.section === section)
+      (c: { subject: string; batch: string; section: string }) => {
+        const cBatch = c.batch?.includes(' - ') ? c.batch.split(' - ')[0].trim() : c.batch;
+        return !(c.subject === subject && cBatch === normalizedBatch && c.section === section);
+      }
     ) || [];
 
     await professor.save();

@@ -89,12 +89,15 @@ export default function StudentSyllabusPage() {
     
     setIsLoading(true);
     try {
+      const token = localStorage.getItem('token');
       const params = new URLSearchParams({
         batch: user.batch,
         section: user.section,
       });
       
-      const response = await fetch(`/api/syllabus?${params}`);
+      const response = await fetch(`/api/syllabus?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (response.ok) {
         const data = await response.json();
         setSyllabusData(data);

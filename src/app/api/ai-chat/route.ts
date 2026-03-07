@@ -108,12 +108,24 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('AI Chat error:', error);
     
+    const msg = error?.message || String(error);
+
+    // Check if API key is expired/invalid
+    if (msg.includes('API key expired') || msg.includes('API_KEY_INVALID')) {
+      return NextResponse.json(
+        { 
+          error: 'Google AI API key has expired. Please renew the GOOGLE_API_KEY in your .env.local file.',
+        },
+        { status: 503 }
+      );
+    }
+    
     // Check if it's a rate limit error from the AI provider
     const isRateLimitError = 
-      error?.message?.includes('429') || 
-      error?.message?.includes('rate limit') ||
-      error?.message?.includes('quota') ||
-      error?.message?.includes('Too Many Requests');
+      msg.includes('429') || 
+      msg.includes('rate limit') ||
+      msg.includes('quota') ||
+      msg.includes('Too Many Requests');
     
     if (isRateLimitError) {
       return NextResponse.json(

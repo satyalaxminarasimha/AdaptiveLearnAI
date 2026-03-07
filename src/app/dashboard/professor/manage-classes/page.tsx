@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/auth-context';
+import { useProfessorSession } from '@/context/professor-session-context';
 import { 
   BookOpen, 
   Plus, 
@@ -130,14 +131,27 @@ export default function ManageClassesPage() {
   });
   const { toast } = useToast();
   const { user } = useAuth();
+  const { setSelectedClass } = useProfessorSession();
 
   const programs = ['CSE(AI&ML)', 'CSE', 'ECE', 'EEE', 'MECH', 'CIVIL', 'IT'];
   const courses = ['B.TECH', 'M.TECH', 'MCA', 'MBA', 'Ph.D'];
-  const batches = ['2021 - 2022', '2022 - 2023', '2023 - 2024', '2024 - 2025', '2025 - 2026'];
   const sections = ['A', 'B', 'C', 'D', 'E'];
   const years = [1, 2, 3, 4];
 
+  // Auto-compute batch year from subject year
+  // Academic year starts in June. E.g., March 2026 → academic start = 2025
+  // Year 4 subject → batch 2022 (students who joined in 2022 are in Y4 in 2025-26)
+  const computeBatchFromYear = (subjectYear: number): string => {
+    const now = new Date();
+    const month = now.getMonth(); // 0-based
+    const academicStartYear = month >= 5 ? now.getFullYear() : now.getFullYear() - 1;
+    const batchYear = academicStartYear - (subjectYear - 1);
+    return batchYear.toString();
+  };
+
   // Add time slot
+  const timeSlotsContainerRef = useRef<HTMLDivElement | null>(null);
+
   const addTimeSlot = () => {
     if (parseInt(newTimeSlot.endTime) <= parseInt(newTimeSlot.startTime)) {
       toast({
@@ -167,11 +181,21 @@ export default function ManageClassesPage() {
       return;
     }
 
-    setTimeSlots([...timeSlots, { ...newTimeSlot }]);
+    const updated = [...timeSlots, { ...newTimeSlot }];
+    setTimeSlots(updated);
     setNewTimeSlot({
       day: 'Monday',
       startTime: '09:00',
       endTime: '10:00'
+    });
+
+    // Scroll latest slot into view when container available
+    requestAnimationFrame(() => {
+      const el = timeSlotsContainerRef.current || document.getElementById('timeSlotsList');
+      if (el) {
+        const last = el.lastElementChild as HTMLElement | null;
+        if (last) last.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      }
     });
   };
 
@@ -243,13 +267,16 @@ export default function ManageClassesPage() {
 
   const handleSubjectSelect = (subject: AvailableSubject) => {
     setSelectedSubject(subject);
+    const subjectYear = parseInt(subject.year) || 1;
+    const autoBatch = computeBatchFromYear(subjectYear);
     setNewClass(prev => ({
       ...prev,
       subject: subject.name,
       subjectCode: subject.code,
       program: subject.program,
       semester: subject.semester,
-      year: parseInt(subject.year) || prev.year,
+      batch: autoBatch,
+      year: subjectYear,
       credits: subject.credits,
       category: subject.category,
       regulation: subject.regulation,
@@ -258,6 +285,13 @@ export default function ManageClassesPage() {
   };
 
   const addClass = async () => {
+    // Auto-compute batch if not set
+    if (!newClass.batch && newClass.year) {
+      const autoBatch = computeBatchFromYear(newClass.year);
+      setNewClass(prev => ({ ...prev, batch: autoBatch }));
+      newClass.batch = autoBatch;
+    }
+
     if (!newClass.subject || !newClass.batch || !newClass.section) {
       toast({
         variant: 'destructive',
@@ -485,16 +519,15 @@ export default function ManageClassesPage() {
   });
 
   const selectClass = (classItem: ClassTeaching) => {
-    localStorage.setItem('professorClass', JSON.stringify({
-      ...classItem,
-      semester: 'Current'
-    }));
+    // Persist selected class via ProfessorSession context (no fake semester values)
+    setSelectedClass(classItem);
     
     toast({
       title: 'Class Selected',
       description: `Now viewing ${classItem.subject} (${classItem.batch}-${classItem.section})`,
     });
     
+    // Navigate to professor dashboard
     window.location.href = '/dashboard/professor';
   };
 
@@ -531,7 +564,7 @@ export default function ManageClassesPage() {
               <Plus className="w-4 h-4" /> Add Course
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-primary" />
@@ -683,20 +716,13 @@ export default function ManageClassesPage() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Batch *</Label>
-                      <Select
-                        value={newClass.batch}
-                        onValueChange={(value) => setNewClass({ ...newClass, batch: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select batch" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {batches.map(batch => (
-                            <SelectItem key={batch} value={batch}>{batch}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Label>Batch (auto)</Label>
+                      <Input
+                        value={newClass.batch ? `Batch ${newClass.batch}` : 'Select a subject to auto-fill'}
+                        disabled
+                        className="bg-muted/50"
+                      />
+                      <p className="text-xs text-muted-foreground">Auto-computed from subject year</p>
                     </div>
                   </div>
 
@@ -774,11 +800,25 @@ export default function ManageClassesPage() {
                     </Button>
                     <Button 
                       onClick={() => {
-                        if (!newClass.subject || !newClass.batch || !newClass.section) {
+                        // Auto-compute batch from year if missing
+                        if (!newClass.batch && newClass.year) {
+                          const autoBatch = computeBatchFromYear(newClass.year);
+                          setNewClass(prev => ({ ...prev, batch: autoBatch }));
+                          newClass.batch = autoBatch;
+                        }
+                        if (!newClass.subject || !newClass.section) {
                           toast({
                             variant: 'destructive',
                             title: 'Error',
-                            description: 'Please fill in subject, batch, and section',
+                            description: 'Please select a subject and section',
+                          });
+                          return;
+                        }
+                        if (!newClass.batch) {
+                          toast({
+                            variant: 'destructive',
+                            title: 'Error',
+                            description: 'Please select a subject to auto-compute batch',
                           });
                           return;
                         }
@@ -883,7 +923,7 @@ export default function ManageClassesPage() {
                       <p className="text-xs">Add at least one time slot for this class</p>
                     </div>
                   ) : (
-                    <div className="grid gap-2">
+                    <div id="timeSlotsList" ref={timeSlotsContainerRef as any} className="grid gap-2 overflow-auto max-h-64">
                       {timeSlots.map((slot, index) => (
                         <div
                           key={index}
@@ -1172,9 +1212,9 @@ export default function ManageClassesPage() {
                 <p className="text-sm text-muted-foreground py-4 text-center border rounded-lg bg-muted/50">
                   No time slots scheduled
                 </p>
-              ) : (
+                ) : (
                 <ScrollArea className="h-[150px]">
-                  <div className="space-y-2">
+                  <div id="timeSlotsList" ref={timeSlotsContainerRef as any} className="space-y-2">
                     {timeSlots.map((slot, index) => (
                       <div 
                         key={index} 

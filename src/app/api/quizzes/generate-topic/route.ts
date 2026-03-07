@@ -61,11 +61,40 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const aiResult = await generateQuizFromSyllabus({
-      syllabusTopic: topic,
-      difficultyLevel: difficulty,
-      numberOfQuestions,
-    });
+    let aiResult;
+    try {
+      aiResult = await generateQuizFromSyllabus({
+        syllabusTopic: topic,
+        difficultyLevel: difficulty,
+        numberOfQuestions,
+      });
+    } catch (aiError: any) {
+      console.error('AI generation error:', aiError);
+      const msg = aiError?.message || String(aiError);
+      if (msg.includes('API key expired') || msg.includes('API_KEY_INVALID')) {
+        return NextResponse.json(
+          { error: 'Google AI API key has expired. Please renew the GOOGLE_API_KEY in your .env.local file.' },
+          { status: 503 }
+        );
+      }
+      if (msg.includes('quota') || msg.includes('RATE_LIMIT')) {
+        return NextResponse.json(
+          { error: 'AI API rate limit exceeded. Please wait a moment and try again.' },
+          { status: 429 }
+        );
+      }
+      return NextResponse.json(
+        { error: `AI quiz generation failed: ${msg.slice(0, 200)}` },
+        { status: 502 }
+      );
+    }
+
+    if (!aiResult?.quizQuestions?.length) {
+      return NextResponse.json(
+        { error: 'AI returned no questions. Please try a different topic or difficulty.' },
+        { status: 422 }
+      );
+    }
 
     const pointsPerQuestion = Math.max(1, Math.round(100 / numberOfQuestions));
 

@@ -25,6 +25,11 @@ export async function GET(request: NextRequest) {
     if (studentId) query.studentId = studentId;
     if (quizId) query.quizId = quizId;
 
+    // Students should only see their own attempts
+    if (payload.role === 'student') {
+      query.studentId = payload.userId;
+    }
+
     const attempts = await QuizAttempt.find(query)
       .populate('quizId', 'title subject passPercentage unitName')
       .populate('studentId', 'name email rollNo')

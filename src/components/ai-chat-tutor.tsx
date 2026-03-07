@@ -82,7 +82,10 @@ export function AiChatTutor({ user }: { user: CurrentUser }) {
 
   const loadChatSessions = async () => {
     try {
-      const response = await fetch('/api/chat-sessions?limit=5');
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/chat-sessions?limit=5', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (response.ok) {
         const data = await response.json();
         setSessions(data.sessions);
@@ -100,9 +103,13 @@ export function AiChatTutor({ user }: { user: CurrentUser }) {
         .find(m => m.sender === 'user')
         ?.message.substring(0, 50) || `Chat - ${new Date().toLocaleDateString()}`;
 
+      const token = localStorage.getItem('token');
       await fetch('/api/chat-sessions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({
           title: chatTitle,
           messages: messages,
@@ -118,7 +125,10 @@ export function AiChatTutor({ user }: { user: CurrentUser }) {
 
   const loadSession = async (sessionId: string) => {
     try {
-      const response = await fetch(`/api/chat-sessions/${sessionId}`);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/chat-sessions/${sessionId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (response.ok) {
         const session = await response.json();
         setMessages(session.messages);
@@ -163,10 +173,13 @@ export function AiChatTutor({ user }: { user: CurrentUser }) {
       let studentQuizHistory = '';
       let weakAreas = '';
       
+      const chatToken = localStorage.getItem('token');
       if (userRole === 'student') {
         try {
           // Fetch quiz attempts for context
-          const quizResponse = await fetch('/api/quiz-attempts?limit=5');
+          const quizResponse = await fetch('/api/quiz-attempts?limit=5', {
+            headers: { Authorization: `Bearer ${chatToken}` },
+          });
           if (quizResponse.ok) {
             const quizData = await quizResponse.json();
             if (quizData.length > 0) {
@@ -177,7 +190,9 @@ export function AiChatTutor({ user }: { user: CurrentUser }) {
           }
           
           // Fetch weak areas for context
-          const weakAreasResponse = await fetch('/api/weak-areas');
+          const weakAreasResponse = await fetch('/api/weak-areas', {
+            headers: { Authorization: `Bearer ${chatToken}` },
+          });
           if (weakAreasResponse.ok) {
             const weakAreasData = await weakAreasResponse.json();
             if (weakAreasData.weakAreas?.length > 0) {
@@ -195,6 +210,7 @@ export function AiChatTutor({ user }: { user: CurrentUser }) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${chatToken}`,
         },
         body: JSON.stringify({
           question: input,

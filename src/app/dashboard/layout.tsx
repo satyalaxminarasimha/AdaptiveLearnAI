@@ -127,15 +127,15 @@ const AdminNav = () => {
       </SidebarMenuItem>
       <SidebarMenuItem>
         <SidebarMenuButton 
-          href="/dashboard/admin/change-requests" 
-          tooltip="Change Requests"
+          href="/dashboard/admin/manage-content" 
+          tooltip="Manage Content"
           className={cn(
             "transition-all duration-200",
-            pathname === '/dashboard/admin/change-requests' && "bg-sidebar-accent text-sidebar-accent-foreground"
+            pathname === '/dashboard/admin/manage-content' && "bg-sidebar-accent text-sidebar-accent-foreground"
           )}
         >
-          <FileEdit className="transition-transform group-hover:scale-110" />
-          Change Requests
+          <MessageSquare className="transition-transform group-hover:scale-110" />
+          Manage Content
         </SidebarMenuButton>
       </SidebarMenuItem>
       <SidebarMenuItem>

@@ -198,21 +198,66 @@ export async function POST(request: NextRequest) {
 
     // Save weak areas to database for teacher dashboard
     if (performanceAnalysis?.weakAreas && performanceAnalysis.weakAreas.length > 0) {
+      // Count questions per topic from this quiz to get real wrong/total counts
+      const topicCounts = new Map<string, { total: number; wrong: number }>();
+      for (const qr of questionResults) {
+        const t = qr.topic || 'General';
+        if (!topicCounts.has(t)) topicCounts.set(t, { total: 0, wrong: 0 });
+        const tc = topicCounts.get(t)!;
+        tc.total++;
+        if (!qr.isCorrect) tc.wrong++;
+      }
+
       for (const weakArea of performanceAnalysis.weakAreas) {
-        await WeakArea.findOneAndUpdate(
-          { studentId: payload.userId, subject: quiz.subject, topic: weakArea.topic },
-          {
-            $set: {
-              subtopics: weakArea.subtopics,
-              prerequisites: weakArea.prerequisites,
-              status: weakArea.severity === 'critical' ? 'critical' : 'needs_work',
-              lastAttemptDate: new Date(),
-            },
-            $inc: { wrongAnswersCount: 1, totalAttempts: 1 },
-            $push: { quizAttempts: attempt._id },
-          },
-          { upsert: true, new: true }
-        );
+        const counts = topicCounts.get(weakArea.topic) || { total: 1, wrong: 1 };
+
+        // Map AI severity to model status
+        let newStatus: 'critical' | 'needs_work' | 'improving' | 'mastered';
+        if (weakArea.severity === 'critical') newStatus = 'critical';
+        else if (weakArea.severity === 'needs_work') newStatus = 'needs_work';
+        else newStatus = 'needs_work'; // 'minor' maps to needs_work
+
+        const existing = await WeakArea.findOne({
+          studentId: payload.userId,
+          subject: quiz.subject,
+          topic: weakArea.topic,
+        });
+
+        if (existing) {
+          existing.wrongAnswersCount += counts.wrong;
+          existing.totalAttempts += counts.total;
+          existing.lastAttemptDate = new Date();
+          existing.subtopics = weakArea.subtopics || existing.subtopics;
+          existing.prerequisites = weakArea.prerequisites || existing.prerequisites;
+          existing.quizAttempts.push(attempt._id);
+
+          // Rolling average of accuracy as improvement score
+          const recentAccuracy = weakArea.accuracy ?? Math.round(((counts.total - counts.wrong) / counts.total) * 100);
+          existing.improvementScore = Math.round((existing.improvementScore + recentAccuracy) / 2);
+
+          // Update status based on improvement trajectory
+          if (existing.improvementScore >= 80) existing.status = 'mastered';
+          else if (existing.improvementScore >= 60) existing.status = 'improving';
+          else if (existing.improvementScore >= 40) existing.status = 'needs_work';
+          else existing.status = 'critical';
+
+          await existing.save();
+        } else {
+          const accuracyVal = weakArea.accuracy ?? Math.round(((counts.total - counts.wrong) / counts.total) * 100);
+          await WeakArea.create({
+            studentId: payload.userId,
+            subject: quiz.subject,
+            topic: weakArea.topic,
+            subtopics: weakArea.subtopics || [],
+            prerequisites: weakArea.prerequisites || [],
+            wrongAnswersCount: counts.wrong,
+            totalAttempts: counts.total,
+            lastAttemptDate: new Date(),
+            improvementScore: accuracyVal,
+            status: newStatus,
+            quizAttempts: [attempt._id],
+          });
+        }
       }
     }
 

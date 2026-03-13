@@ -39,5 +39,6 @@ const WeakAreaSchema: Schema = new Schema({
 // Index for efficient student queries
 WeakAreaSchema.index({ studentId: 1, subject: 1 });
 WeakAreaSchema.index({ studentId: 1, status: 1 });
+WeakAreaSchema.index({ studentId: 1, subject: 1, topic: 1 }, { unique: true });
 
 export default mongoose.models.WeakArea || mongoose.model<IWeakArea>('WeakArea', WeakAreaSchema);

@@ -6,11 +6,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Book, FileText, Search, Users, Clock, CheckCircle, ListTodo, UserCheck, TrendingUp, Sparkles, AlertCircle } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Book, FileText, Search, Users, Clock, CheckCircle, ListTodo, UserCheck, TrendingUp, Sparkles, AlertCircle, BookCopy } from 'lucide-react';
 import { useProfessorSession } from '@/context/professor-session-context';
 import { useAuth } from '@/context/auth-context';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import Link from 'next/link';
 
 const iconMap: { [key: string]: React.ElementType } = {
     Users: Users,
@@ -77,7 +79,7 @@ function ProfessorDashboardSkeleton() {
 
 
 export default function ProfessorDashboardPage() {
-  const { selectedClass, isLoading } = useProfessorSession();
+  const { selectedClass, setSelectedClass, isLoading, availableClasses } = useProfessorSession();
   const { user } = useAuth();
   const [classStats, setClassStats] = useState({
     activeStudents: 0,
@@ -89,44 +91,65 @@ export default function ProfessorDashboardPage() {
   const [dataLoading, setDataLoading] = useState(true);
 
   useEffect(() => {
+    // Reset loading state when selectedClass changes
+    setDataLoading(true);
+    
     const fetchStats = async () => {
       if (!selectedClass) {
+        setClassStats({
+          activeStudents: 0,
+          quizzesCreated: 0,
+          totalTopics: 0,
+          topicsCovered: 0,
+          topicsPending: 0,
+        });
         setDataLoading(false);
         return;
       }
 
       try {
         const token = localStorage.getItem('token');
+        if (!token) {
+          setDataLoading(false);
+          return;
+        }
         const headers = { 'Authorization': `Bearer ${token}` };
 
-        // Fetch students count
-        const studentsRes = await fetch(`/api/students?batch=${selectedClass.batch}&section=${selectedClass.section}`, { headers });
+        // Fetch all stats in parallel for efficiency
+        const [studentsRes, quizzesRes, syllabusRes] = await Promise.all([
+          fetch(`/api/students?batch=${encodeURIComponent(selectedClass.batch)}&section=${encodeURIComponent(selectedClass.section)}`, { headers }),
+          fetch(`/api/quizzes?subject=${encodeURIComponent(selectedClass.subject)}&batch=${encodeURIComponent(selectedClass.batch)}&section=${encodeURIComponent(selectedClass.section)}`, { headers }),
+          fetch(`/api/syllabus?batch=${encodeURIComponent(selectedClass.batch)}&section=${encodeURIComponent(selectedClass.section)}${selectedClass.year ? `&year=${selectedClass.year}` : ''}${selectedClass.semester ? `&semester=${selectedClass.semester}` : ''}`, { headers }),
+        ]);
+
         let studentsCount = 0;
         if (studentsRes.ok) {
           const students = await studentsRes.json();
-          studentsCount = students.length;
+          studentsCount = Array.isArray(students) ? students.length : 0;
         }
 
-        // Fetch quizzes count
-        const quizzesRes = await fetch(`/api/quizzes?subject=${encodeURIComponent(selectedClass.subject)}`, { headers });
         let quizzesCount = 0;
         if (quizzesRes.ok) {
           const quizzes = await quizzesRes.json();
-          quizzesCount = quizzes.length;
+          quizzesCount = Array.isArray(quizzes) ? quizzes.length : 0;
         }
 
-        // Fetch syllabus progress
-        const syllabusRes = await fetch(`/api/syllabus?batch=${selectedClass.batch}&section=${selectedClass.section}`, { headers });
         let totalTopics = 0;
         let topicsCovered = 0;
         if (syllabusRes.ok) {
           const syllabi = await syllabusRes.json();
-          if (syllabi.length > 0) {
-            const syllabus = syllabi[0];
-            const subject = syllabus.subjects?.find((s: any) => s.name === selectedClass.subject);
-            if (subject) {
-              totalTopics = subject.totalTopics || 0;
-              topicsCovered = subject.completedTopics || 0;
+          if (Array.isArray(syllabi) && syllabi.length > 0) {
+            // Find the syllabus that contains the subject
+            for (const syllabus of syllabi) {
+              const subject = syllabus.subjects?.find((s: any) => 
+                s.name?.toLowerCase() === selectedClass.subject?.toLowerCase() ||
+                s.code?.toLowerCase() === selectedClass.subject?.toLowerCase()
+              );
+              if (subject) {
+                totalTopics = subject.totalTopics || subject.topics?.length || 0;
+                topicsCovered = subject.completedTopics || 0;
+                break;
+              }
             }
           }
         }
@@ -146,7 +169,7 @@ export default function ProfessorDashboardPage() {
     };
 
     fetchStats();
-  }, [selectedClass]);
+  }, [selectedClass?.batch, selectedClass?.section, selectedClass?.subject, selectedClass?.year, selectedClass?.semester]);
 
   const stats = [
     { title: 'Active Students', value: classStats.activeStudents, icon: 'Users', change: '' },
@@ -173,17 +196,60 @@ export default function ProfessorDashboardPage() {
             </div>
             <p className="text-sm sm:text-base text-muted-foreground">
                 {selectedClass 
-                    ? <>Here's what's happening with <Badge variant="outline" className="font-semibold">{selectedClass.subject}</Badge> <Badge variant="secondary">{selectedClass.section}</Badge> today.</>
-                    : "Please select a class to view details."
+                    ? <>Here&apos;s what&apos;s happening with <Badge variant="outline" className="font-semibold">{selectedClass.subject}</Badge> <Badge variant="secondary">{selectedClass.section}</Badge> today.</>
+                    : "Select a class below to view your dashboard."
                 }
             </p>
         </div>
-        <div className="relative w-full lg:w-72">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input 
-              placeholder="Search students..." 
-              className="pl-9 transition-all focus:ring-2 focus:ring-primary/20" 
-            />
+        <div className="w-full lg:w-80">
+          {availableClasses.length > 0 ? (
+            <Select
+              value={
+                selectedClass
+                  ? `${selectedClass.subject}__${selectedClass.batch}__${selectedClass.section}`
+                  : ''
+              }
+              onValueChange={(value) => {
+                const cls = availableClasses.find(
+                  (c) => `${c.subject}__${c.batch}__${c.section}` === value
+                );
+                if (cls) {
+                  setSelectedClass({
+                    batch: cls.batch,
+                    section: cls.section,
+                    subject: cls.subject,
+                    semester: cls.semester,
+                    year: cls.year?.toString(),
+                  });
+                }
+              }}
+            >
+              <SelectTrigger className="w-full">
+                <div className="flex items-center gap-2">
+                  <BookCopy className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <SelectValue placeholder="Select a class..." />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                {availableClasses.map((cls) => (
+                  <SelectItem
+                    key={`${cls.subject}__${cls.batch}__${cls.section}`}
+                    value={`${cls.subject}__${cls.batch}__${cls.section}`}
+                  >
+                    {cls.subject} — {cls.batch} {cls.section}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Link
+              href="/dashboard/professor/manage-classes"
+              className="text-sm text-primary hover:underline flex items-center gap-1"
+            >
+              <BookCopy className="h-4 w-4" />
+              Add your first class in My Courses
+            </Link>
+          )}
         </div>
       </div>
 

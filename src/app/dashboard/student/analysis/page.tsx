@@ -48,22 +48,41 @@ export default function StudentAnalysisPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [quizAttempts, setQuizAttempts] = useState<any[]>([]);
   const [subjects, setSubjects] = useState<string[]>([]);
+  const [totalQuizCount, setTotalQuizCount] = useState(0);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         const token = localStorage.getItem('token');
+        if (!token) {
+          setIsLoading(false);
+          return;
+        }
         const headers = { 'Authorization': `Bearer ${token}` };
 
-        // Fetch quiz attempts
-        const attemptsRes = await fetch('/api/quiz-attempts', { headers });
+        // Fetch quiz attempts and total quiz count in parallel
+        const [attemptsRes, quizzesRes] = await Promise.all([
+          fetch('/api/quiz-attempts', { headers }),
+          fetch('/api/quizzes?isActive=true', { headers }),
+        ]);
+
         if (attemptsRes.ok) {
           const attempts = await attemptsRes.json();
-          setQuizAttempts(attempts);
+          setQuizAttempts(Array.isArray(attempts) ? attempts : []);
           
-          // Extract unique subjects
-          const uniqueSubjects = [...new Set(attempts.map((a: any) => a.quiz?.subject).filter(Boolean))];
+          // Extract unique subjects from attempts
+          // API populates quizId with quiz object containing {title, subject, ...}
+          const uniqueSubjects = [...new Set(
+            (Array.isArray(attempts) ? attempts : [])
+              .map((a: any) => a.quizId?.subject)
+              .filter(Boolean)
+          )];
           setSubjects(uniqueSubjects as string[]);
+        }
+
+        if (quizzesRes.ok) {
+          const quizzes = await quizzesRes.json();
+          setTotalQuizCount(Array.isArray(quizzes) ? quizzes.length : 0);
         }
       } catch (err) {
         console.error('Error fetching analysis data:', err);
@@ -77,7 +96,7 @@ export default function StudentAnalysisPage() {
 
   const analysisData = useMemo(() => {
     if (!selectedSubject || quizAttempts.length === 0) return [];
-    const subjectAttempts = quizAttempts.filter(a => a.quiz?.subject === selectedSubject);
+    const subjectAttempts = quizAttempts.filter(a => a.quizId?.subject === selectedSubject);
     const totalCorrect = subjectAttempts.reduce((sum, a) => sum + (a.score || 0), 0);
     const totalQuestions = subjectAttempts.reduce((sum, a) => sum + (a.totalQuestions || 10), 0);
     return [
@@ -86,12 +105,12 @@ export default function StudentAnalysisPage() {
     ];
   }, [selectedSubject, quizAttempts]);
 
-  // Get quizzes by subject for real data
+  // Get quizzes by subject from real data
   const subjectQuizzes = useMemo(() => {
     const result: Record<string, string[]> = {};
     quizAttempts.forEach(a => {
-      const subject = a.quiz?.subject;
-      const title = a.quiz?.title;
+      const subject = a.quizId?.subject;
+      const title = a.quizId?.title;
       if (subject && title) {
         if (!result[subject]) result[subject] = [];
         if (!result[subject].includes(title)) result[subject].push(title);
@@ -149,16 +168,16 @@ export default function StudentAnalysisPage() {
   // Pie chart data for quiz completion
   const quizCompletionData = [
     { name: 'Completed', value: totalAttempts, fill: 'hsl(var(--chart-1))' },
-    { name: 'Remaining', value: Math.max(0, 10 - totalAttempts), fill: 'hsl(var(--chart-2))' },
+    { name: 'Remaining', value: Math.max(0, totalQuizCount - totalAttempts), fill: 'hsl(var(--chart-2))' },
   ];
 
   // Subject performance from real data
   const subjectPerformanceData = subjects.map(subject => {
-    const subjectAttempts = quizAttempts.filter(a => a.quiz?.subject === subject);
+    const subjectAttempts = quizAttempts.filter(a => a.quizId?.subject === subject);
     const avg = subjectAttempts.length > 0
       ? Math.round(subjectAttempts.reduce((sum, a) => sum + ((a.score / (a.totalQuestions || 10)) * 100), 0) / subjectAttempts.length)
       : 0;
-    return { name: subject, value: avg };
+    return { subject, score: avg };
   });
 
 
@@ -227,9 +246,10 @@ export default function StudentAnalysisPage() {
                   tickLine={false}
                   tickMargin={10}
                   axisLine={false}
-                  className="w-20 sm:w-24 text-xs sm:text-sm"
+                  width={120}
+                  className="text-xs sm:text-sm"
                 />
-                <XAxis dataKey="score" type="number" hide />
+                <XAxis dataKey="score" type="number" domain={[0, 100]} hide />
                 <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="dot" formatter={(value) => `${value}%`} />} />
                 <Bar dataKey="score" fill="var(--color-score)" radius={4}>
                    {subjectPerformanceData.map((entry, index) => (

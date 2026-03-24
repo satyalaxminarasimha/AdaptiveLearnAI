@@ -558,6 +558,7 @@ export default function DashboardLayout({
                   variant="ghost" 
                   size="icon" 
                   className="h-8 w-8 group-data-[collapsible=icon]:hidden ml-auto transition-colors hover:bg-destructive/10 hover:text-destructive" 
+                  data-sidebar-close-mobile="true"
                   onClick={handleLogout}
                 >
                   <LogOut className="h-4 w-4" />

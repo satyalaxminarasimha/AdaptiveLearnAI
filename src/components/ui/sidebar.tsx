@@ -178,6 +178,25 @@ const Sidebar = React.forwardRef<
   ) => {
     const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
 
+    const handleMobileSheetClick = (event: React.MouseEvent<HTMLDivElement>) => {
+      if (!isMobile || event.defaultPrevented) {
+        return
+      }
+
+      const target = event.target as HTMLElement | null
+      if (!target) {
+        return
+      }
+
+      const shouldClose =
+        target.closest("a") ||
+        target.closest("[data-sidebar-close-mobile='true']")
+
+      if (shouldClose) {
+        setOpenMobile(false)
+      }
+    }
+
     if (collapsible === "none") {
       return (
         <div
@@ -207,7 +226,7 @@ const Sidebar = React.forwardRef<
             }
             side={side}
           >
-            <div className="flex h-full w-full flex-col">{children}</div>
+            <div className="flex h-full w-full flex-col" onClick={handleMobileSheetClick}>{children}</div>
           </SheetContent>
         </Sheet>
       )
@@ -555,17 +574,27 @@ const SidebarMenuButton = React.forwardRef<
       tooltip,
       className,
       href,
+      onClick,
       ...props
     },
     ref
   ) => {
-    const { isMobile, state } = useSidebar()
+    const { isMobile, state, setOpenMobile } = useSidebar()
+
+    const handleClick = (event: React.MouseEvent<HTMLButtonElement | HTMLAnchorElement>) => {
+      onClick?.(event as React.MouseEvent<HTMLButtonElement> & React.MouseEvent<HTMLAnchorElement>)
+
+      if (!event.defaultPrevented && isMobile && href) {
+        setOpenMobile(false)
+      }
+    }
 
     const commonProps = {
       "data-sidebar": "menu-button",
       "data-size": size,
       "data-active": isActive,
       className: cn(sidebarMenuButtonVariants({ variant, size }), className),
+      onClick: handleClick,
       ...props,
     }
 

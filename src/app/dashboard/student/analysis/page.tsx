@@ -94,16 +94,25 @@ export default function StudentAnalysisPage() {
     fetchData();
   }, []);
 
+  const filteredAttempts = useMemo(() => {
+    if (!selectedSubject) return [];
+    return quizAttempts.filter(a => {
+      const isSubjectMatch = a.quizId?.subject === selectedSubject;
+      const isQuizMatch = selectedQuiz ? a.quizId?.title === selectedQuiz : true;
+      return isSubjectMatch && isQuizMatch;
+    });
+  }, [selectedSubject, selectedQuiz, quizAttempts]);
+
   const analysisData = useMemo(() => {
-    if (!selectedSubject || quizAttempts.length === 0) return [];
-    const subjectAttempts = quizAttempts.filter(a => a.quizId?.subject === selectedSubject);
-    const totalCorrect = subjectAttempts.reduce((sum, a) => sum + (a.score || 0), 0);
-    const totalQuestions = subjectAttempts.reduce((sum, a) => sum + (a.totalQuestions || 10), 0);
+    if (!selectedSubject || filteredAttempts.length === 0) return [];
+    const totalCorrect = filteredAttempts.reduce((sum, a) => sum + (a.score || 0), 0);
+    const totalQuestions = filteredAttempts.reduce((sum, a) => sum + (a.totalQuestions || 0), 0);
+    if (!totalQuestions) return [];
     return [
       { name: 'Correct', answers: totalCorrect, fill: 'hsl(142 76% 36%)' },
-      { name: 'Incorrect', answers: totalQuestions - totalCorrect, fill: 'hsl(0 84% 60%)' },
+      { name: 'Incorrect', answers: Math.max(0, totalQuestions - totalCorrect), fill: 'hsl(0 84% 60%)' },
     ];
-  }, [selectedSubject, quizAttempts]);
+  }, [selectedSubject, filteredAttempts]);
 
   // Get quizzes by subject from real data
   const subjectQuizzes = useMemo(() => {
@@ -297,7 +306,7 @@ export default function StudentAnalysisPage() {
             </CardHeader>
             <CardContent>
                 <div className="flex items-center justify-center min-h-[250px] sm:min-h-[320px]">
-                    {selectedSubject ? (
+                    {selectedSubject && analysisData.length > 0 ? (
                     <ChartContainer
                         config={studentAnswerAnalysisChartConfig}
                         className="mx-auto aspect-square h-56 sm:h-72 md:h-80"
@@ -327,7 +336,11 @@ export default function StudentAnalysisPage() {
                     ) : (
                     <div className="text-muted-foreground text-center p-6 sm:p-8">
                         <PieChartIcon className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-3 opacity-50" />
-                        <p className="text-sm sm:text-base">Please select a subject to see the analysis.</p>
+                      <p className="text-sm sm:text-base">
+                        {selectedSubject
+                        ? 'No attempts found for this selection yet.'
+                        : 'Please select a subject to see the analysis.'}
+                      </p>
                     </div>
                     )}
                 </div>
@@ -340,10 +353,40 @@ export default function StudentAnalysisPage() {
                         <Medal className="h-5 w-5 text-orange-500" />
                         Selected Quiz: <span className="text-primary">{selectedQuiz}</span>
                       </h3>
-                      <div className="text-center p-6 text-muted-foreground text-sm bg-muted/30 rounded-lg">
-                        <Trophy className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                        <p>Quiz performance details will appear here based on your attempts.</p>
-                      </div>
+                      {filteredAttempts.length > 0 ? (
+                        <div className="grid gap-3 sm:grid-cols-3">
+                          <Card className="bg-muted/30">
+                            <CardContent className="pt-4 text-center">
+                              <p className="text-xs uppercase text-muted-foreground">Attempts</p>
+                              <p className="text-xl font-semibold">{filteredAttempts.length}</p>
+                            </CardContent>
+                          </Card>
+                          <Card className="bg-muted/30">
+                            <CardContent className="pt-4 text-center">
+                              <p className="text-xs uppercase text-muted-foreground">Avg Score</p>
+                              <p className="text-xl font-semibold">
+                                {Math.round(
+                                  filteredAttempts.reduce((sum, a) => sum + (a.percentage || 0), 0) /
+                                  filteredAttempts.length
+                                )}%
+                              </p>
+                            </CardContent>
+                          </Card>
+                          <Card className="bg-muted/30">
+                            <CardContent className="pt-4 text-center">
+                              <p className="text-xs uppercase text-muted-foreground">Best Score</p>
+                              <p className="text-xl font-semibold">
+                                {Math.max(...filteredAttempts.map(a => a.percentage || 0))}%
+                              </p>
+                            </CardContent>
+                          </Card>
+                        </div>
+                      ) : (
+                        <div className="text-center p-6 text-muted-foreground text-sm bg-muted/30 rounded-lg">
+                          <Trophy className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                          <p>No attempts found for this quiz yet.</p>
+                        </div>
+                      )}
                     </div>
                   </>
                 )}

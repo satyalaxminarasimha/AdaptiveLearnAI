@@ -8,6 +8,13 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Table,
   TableBody,
   TableCell,
@@ -24,6 +31,7 @@ import {
   AlertTriangle, 
   Users, 
   BookOpen, 
+  BookCopy,
   TrendingDown, 
   ChevronDown, 
   ChevronRight,
@@ -31,7 +39,9 @@ import {
   Target,
   AlertCircle,
   CheckCircle2,
-  Clock
+  Clock,
+  RefreshCw,
+  Loader2
 } from 'lucide-react';
 import { useProfessorSession } from '@/context/professor-session-context';
 import { cn } from '@/lib/utils';
@@ -79,8 +89,9 @@ interface ClassStats {
 }
 
 export default function WeakAreasReportPage() {
-  const { selectedClass, isLoading: sessionLoading } = useProfessorSession();
+  const { selectedClass, setSelectedClass, isLoading: sessionLoading, availableClasses } = useProfessorSession();
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [aggregatedTopics, setAggregatedTopics] = useState<AggregatedTopic[]>([]);
   const [studentSummaries, setStudentSummaries] = useState<StudentSummary[]>([]);
   const [recentAttempts, setRecentAttempts] = useState<RecentAttempt[]>([]);
@@ -88,10 +99,14 @@ export default function WeakAreasReportPage() {
   const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState('topics');
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (refresh = false) => {
     if (!selectedClass) return;
     
-    setIsLoading(true);
+    if (refresh) {
+      setIsRefreshing(true);
+    } else {
+      setIsLoading(true);
+    }
     try {
       const token = localStorage.getItem('token');
       const params = new URLSearchParams({
@@ -115,10 +130,17 @@ export default function WeakAreasReportPage() {
       console.error('Error fetching weak areas:', error);
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
-  }, [selectedClass]);
+  }, [selectedClass?.batch, selectedClass?.section, selectedClass?.subject]);
 
+  // Clear stale data and refetch when class changes
   useEffect(() => {
+    setAggregatedTopics([]);
+    setStudentSummaries([]);
+    setRecentAttempts([]);
+    setStats(null);
+    setExpandedTopics(new Set());
     fetchData();
   }, [fetchData]);
 
@@ -134,18 +156,73 @@ export default function WeakAreasReportPage() {
     });
   };
 
-  if (sessionLoading || !selectedClass) {
+  if (sessionLoading) {
     return (
-      <main className="flex-1 p-4 md:p-6">
-        <Card>
-          <CardContent className="py-12 text-center">
-            <AlertCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-medium">Select a Class</h3>
-            <p className="text-muted-foreground mt-1">
-              Please select a class from the top menu to view weak areas report.
-            </p>
-          </CardContent>
-        </Card>
+      <main className="flex-1 space-y-6 p-4 md:p-6">
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-10 w-80" />
+        <Skeleton className="h-96" />
+      </main>
+    );
+  }
+
+  if (!selectedClass) {
+    return (
+      <main className="flex-1 p-4 md:p-6 space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+            <Brain className="h-6 w-6 text-primary" />
+            Weak Areas Report
+          </h1>
+          <p className="text-muted-foreground">Select a class to view the report</p>
+        </div>
+        {availableClasses.length > 0 ? (
+          <div className="w-full sm:w-80">
+            <Select
+              onValueChange={(value) => {
+                const cls = availableClasses.find(
+                  (c) => `${c.subject}__${c.batch}__${c.section}` === value
+                );
+                if (cls) {
+                  setSelectedClass({
+                    batch: cls.batch,
+                    section: cls.section,
+                    subject: cls.subject,
+                    semester: cls.semester,
+                    year: cls.year?.toString(),
+                  });
+                }
+              }}
+            >
+              <SelectTrigger>
+                <div className="flex items-center gap-2">
+                  <BookCopy className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <SelectValue placeholder="Select a class..." />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                {availableClasses.map((cls) => (
+                  <SelectItem
+                    key={`${cls.subject}__${cls.batch}__${cls.section}`}
+                    value={`${cls.subject}__${cls.batch}__${cls.section}`}
+                  >
+                    {cls.subject} — {cls.batch} {cls.section}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <AlertCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <h3 className="text-lg font-medium">No Classes Found</h3>
+              <p className="text-muted-foreground mt-1">
+                Please add classes in My Courses first.
+              </p>
+            </CardContent>
+          </Card>
+        )}
       </main>
     );
   }
@@ -177,9 +254,61 @@ export default function WeakAreasReportPage() {
             AI-analyzed student performance insights for {selectedClass.subject}
           </p>
         </div>
-        <Badge variant="outline" className="w-fit">
-          {selectedClass.batch} • Section {selectedClass.section}
-        </Badge>
+        <div className="flex items-center gap-3">
+          {availableClasses.length > 1 && (
+            <Select
+              value={`${selectedClass.subject}__${selectedClass.batch}__${selectedClass.section}`}
+              onValueChange={(value) => {
+                const cls = availableClasses.find(
+                  (c) => `${c.subject}__${c.batch}__${c.section}` === value
+                );
+                if (cls) {
+                  setSelectedClass({
+                    batch: cls.batch,
+                    section: cls.section,
+                    subject: cls.subject,
+                    semester: cls.semester,
+                    year: cls.year?.toString(),
+                  });
+                }
+              }}
+            >
+              <SelectTrigger className="w-[220px]">
+                <div className="flex items-center gap-2">
+                  <BookCopy className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <SelectValue />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                {availableClasses.map((cls) => (
+                  <SelectItem
+                    key={`${cls.subject}__${cls.batch}__${cls.section}`}
+                    value={`${cls.subject}__${cls.batch}__${cls.section}`}
+                  >
+                    {cls.subject} — {cls.batch} {cls.section}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {availableClasses.length <= 1 && (
+            <Badge variant="outline" className="w-fit">
+              {selectedClass.batch} • Section {selectedClass.section}
+            </Badge>
+          )}
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => fetchData(true)}
+            disabled={isRefreshing}
+          >
+            {isRefreshing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}

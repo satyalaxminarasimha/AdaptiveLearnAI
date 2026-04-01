@@ -520,7 +520,14 @@ export default function ManageClassesPage() {
 
   const selectClass = (classItem: ClassTeaching) => {
     // Persist selected class via ProfessorSession context (no fake semester values)
-    setSelectedClass(classItem);
+    // Convert ClassTeaching to ProfessorClass type
+    setSelectedClass({
+      batch: classItem.batch,
+      section: classItem.section,
+      subject: classItem.subject,
+      semester: classItem.semester,
+      year: classItem.year?.toString(),
+    });
     
     toast({
       title: 'Class Selected',

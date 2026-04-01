@@ -73,9 +73,11 @@ export async function GET(request: NextRequest) {
         name: (wa.studentId as any).name,
         email: (wa.studentId as any).email,
         severity: wa.status,
-        accuracy: wa.totalAttempts > 0 
-          ? Math.round(((wa.totalAttempts - wa.wrongAnswersCount) / wa.totalAttempts) * 100)
-          : 0,
+        accuracy: wa.improvementScore ?? (
+          wa.totalAttempts > 0 
+            ? Math.round(((wa.totalAttempts - wa.wrongAnswersCount) / wa.totalAttempts) * 100)
+            : 0
+        ),
       });
       agg.totalStudents++;
       if (wa.status === 'critical') agg.criticalCount++;

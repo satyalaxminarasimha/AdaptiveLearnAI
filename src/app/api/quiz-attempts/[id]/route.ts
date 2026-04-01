@@ -7,7 +7,7 @@ import { explainQuizQuestion, type ExplainQuizQuestionInput } from '@/ai/flows/e
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const payload = verifyToken(request);
@@ -17,7 +17,7 @@ export async function GET(
 
     await dbConnect();
 
-    const attemptId = params.id;
+    const { id: attemptId } = await params;
 
     // Fetch the quiz attempt
     const attempt = await QuizAttempt.findById(attemptId)
@@ -80,7 +80,7 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const payload = verifyToken(request);
@@ -99,7 +99,7 @@ export async function POST(
       );
     }
 
-    const attemptId = params.id;
+    const { id: attemptId } = await params;
 
     // Fetch the quiz attempt
     const attempt = await QuizAttempt.findById(attemptId)

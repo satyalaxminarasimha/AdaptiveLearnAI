@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import AdminContent from '@/models/AdminContent';
+import '@/models/User';
 import { verifyToken } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {

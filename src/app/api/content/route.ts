@@ -3,6 +3,12 @@ import dbConnect from '@/lib/mongodb';
 import AdminContent from '@/models/AdminContent';
 import { verifyToken } from '@/lib/auth';
 
+const roleToAudience: Record<string, 'students' | 'professors' | 'admins'> = {
+  student: 'students',
+  professor: 'professors',
+  admin: 'admins',
+};
+
 export async function GET(request: NextRequest) {
   try {
     await dbConnect();
@@ -32,9 +38,10 @@ export async function GET(request: NextRequest) {
       query.type = type;
     }
 
-    // If user is authenticated, filter by their role
+    // If user is authenticated, filter by mapped audience role
     if (userRole) {
-      query.targetAudience = { $in: [userRole] };
+      const audience = roleToAudience[userRole] || 'students';
+      query.targetAudience = { $in: [audience] };
     } else {
       // For unauthenticated users, show content for all audiences
       query.targetAudience = { $in: ['students', 'professors', 'admins'] };
@@ -45,7 +52,14 @@ export async function GET(request: NextRequest) {
       .sort({ priority: -1, publishedAt: -1 })
       .limit(limit);
 
-    return NextResponse.json({ contents });
+    return NextResponse.json(
+      { contents },
+      {
+        headers: {
+          'Cache-Control': 'no-store, max-age=0',
+        },
+      }
+    );
   } catch (error) {
     console.error('Error fetching content:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

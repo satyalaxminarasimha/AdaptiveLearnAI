@@ -23,6 +23,7 @@ import {
   UserPlus,
   Users,
   Menu,
+  UploadCloud,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -102,14 +103,27 @@ const AdminNav = () => {
       <SidebarMenuItem>
         <SidebarMenuButton 
           href="/dashboard/admin/edit-syllabus" 
-          tooltip="Manage Data"
+          tooltip="View Syllabus"
           className={cn(
             "transition-all duration-200",
             pathname === '/dashboard/admin/edit-syllabus' && "bg-sidebar-accent text-sidebar-accent-foreground"
           )}
         >
           <FilePen className="transition-transform group-hover:scale-110" />
-          Manage Data & Syllabus
+          View Syllabus
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+      <SidebarMenuItem>
+        <SidebarMenuButton 
+          href="/dashboard/admin/syllabus" 
+          tooltip="Ingest Syllabus"
+          className={cn(
+            "transition-all duration-200",
+            pathname === '/dashboard/admin/syllabus' && "bg-sidebar-accent text-sidebar-accent-foreground"
+          )}
+        >
+          <UploadCloud className="transition-transform group-hover:scale-110" />
+          Ingest Syllabus PDF
         </SidebarMenuButton>
       </SidebarMenuItem>
       <SidebarMenuItem>
@@ -136,6 +150,19 @@ const AdminNav = () => {
         >
           <MessageSquare className="transition-transform group-hover:scale-110" />
           Manage Content
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+      <SidebarMenuItem>
+        <SidebarMenuButton 
+          href="/dashboard/admin/change-requests" 
+          tooltip="Change Requests"
+          className={cn(
+            "transition-all duration-200",
+            pathname === '/dashboard/admin/change-requests' && "bg-sidebar-accent text-sidebar-accent-foreground"
+          )}
+        >
+          <FileEdit className="transition-transform group-hover:scale-110" />
+          Change Requests
         </SidebarMenuButton>
       </SidebarMenuItem>
       <SidebarMenuItem>

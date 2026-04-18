@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
+import './User';
 
 export interface IAdminContent extends Document {
   title: string;

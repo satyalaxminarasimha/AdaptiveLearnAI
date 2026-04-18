@@ -287,13 +287,6 @@ export default function AdminChangeRequestsPage() {
                       Reject
                     </Button>
                     <Button
-                      variant="outline"
-                      onClick={() => handleAction('approved', false)}
-                      disabled={isSubmitting}
-                    >
-                      Approve Only
-                    </Button>
-                    <Button
                       onClick={() => handleAction('approved', true)}
                       disabled={isSubmitting}
                       className="bg-green-600 hover:bg-green-700"

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Upload, BookOpen, GraduationCap, Layers, FileText, Cloud, Loader2 } from 'lucide-react';
+import { BookOpen, GraduationCap, Layers, FileText, Loader2 } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
 
@@ -16,7 +16,7 @@ interface Subject {
 
 type SyllabusData = Record<string, Record<string, Subject[]>>;
 
-export default function EditSyllabusPage() {
+export default function ViewSyllabusPage() {
   const [syllabus, setSyllabus] = useState<SyllabusData>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -77,32 +77,15 @@ export default function EditSyllabusPage() {
               <FileText className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
             </div>
             <div>
-              <CardTitle className="text-lg sm:text-xl">Manage Data and Syllabus</CardTitle>
+              <CardTitle className="text-lg sm:text-xl">View Syllabus</CardTitle>
               <CardDescription className="text-xs sm:text-sm mt-1">
-                Manage the knowledge base and syllabus content for the platform.
+                Browse syllabus content available on the platform.
               </CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-6 sm:space-y-8">
             <div className="animate-fade-in" style={{ animationDelay: '100ms' }}>
-                <div className="flex items-center gap-2 mb-3">
-                  <Cloud className="h-5 w-5 text-primary" />
-                  <h2 className="text-lg sm:text-xl font-semibold">Ingest Knowledge</h2>
-                </div>
-                <div className="flex justify-center items-center h-40 sm:h-48 border-2 border-dashed rounded-lg bg-muted/30 transition-all duration-300 hover:bg-muted/50 hover:border-primary/50 cursor-pointer group">
-                    <div className="text-center text-muted-foreground p-4">
-                        <Upload className="mx-auto h-10 w-10 sm:h-12 sm:w-12 transition-transform group-hover:scale-110 group-hover:text-primary" />
-                        <p className="mt-3 sm:mt-4 text-sm sm:text-base">Drag and drop files here to ingest knowledge.</p>
-                        <p className="text-xs sm:text-sm">You can manage URLs and uploaded documents.</p>
-                        <Button className="mt-3 sm:mt-4 transition-transform hover:scale-105" size="sm">
-                          <Upload className="h-4 w-4 mr-2" />
-                          Upload File
-                        </Button>
-                    </div>
-                </div>
-            </div>
-            <div className="animate-fade-in" style={{ animationDelay: '200ms' }}>
                 <div className="flex items-center gap-2 mb-3">
                   <BookOpen className="h-5 w-5 text-primary" />
                   <h2 className="text-lg sm:text-xl font-semibold">Syllabus Overview</h2>

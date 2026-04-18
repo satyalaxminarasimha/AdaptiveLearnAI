@@ -17,6 +17,7 @@ export interface ISubject {
   credits?: number;
   category?: string; // BS, PC, ES, HS, SOC, PE, OE
   topics: ITopicCompletion[];
+  unitsDetailed?: IUnit[];
   units?: number;
   totalTopics: number;
   completedTopics: number;
@@ -25,6 +26,16 @@ export interface ISubject {
   courseOutcomes?: string[];
   textbooks?: string[];
   references?: string[];
+}
+
+export interface IUnitTopic {
+  topic: string;
+  subtopics: string[];
+}
+
+export interface IUnit {
+  unitNumber: string;
+  topics: IUnitTopic[];
 }
 
 export interface ISyllabus extends Document {
@@ -54,12 +65,23 @@ const TopicCompletionSchema: Schema = new Schema({
   notes: { type: String },
 }, { _id: false });
 
+const UnitTopicSchema: Schema = new Schema({
+  topic: { type: String, required: true },
+  subtopics: [{ type: String }],
+}, { _id: false });
+
+const UnitSchema: Schema = new Schema({
+  unitNumber: { type: String, required: true },
+  topics: [UnitTopicSchema],
+}, { _id: false });
+
 const SubjectSchema: Schema = new Schema({
   name: { type: String, required: true },
   code: { type: String },
   credits: { type: Number },
   category: { type: String }, // BS, PC, ES, HS, SOC, PE, OE
   topics: [TopicCompletionSchema],
+  unitsDetailed: [UnitSchema],
   units: { type: Number },
   totalTopics: { type: Number, default: 0 },
   completedTopics: { type: Number, default: 0 },

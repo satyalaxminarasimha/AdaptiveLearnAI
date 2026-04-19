@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
   try {
     await dbConnect();
 
-    const { email, password } = await request.json();
+    const { email, password, role } = await request.json();
 
     // Find user
     const user = await User.findOne({ email });
@@ -34,6 +34,13 @@ export async function POST(request: NextRequest) {
     if (!user.isApproved) {
       return NextResponse.json(
         { error: 'Account not approved yet. Please wait for admin approval.' },
+        { status: 403 }
+      );
+    }
+
+    if (role && role !== user.role) {
+      return NextResponse.json(
+        { error: `This account is registered as a ${user.role}. Please select the matching role.` },
         { status: 403 }
       );
     }

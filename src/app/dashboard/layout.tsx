@@ -477,12 +477,32 @@ export default function DashboardLayout({
 
   const role = getRole();
 
+  const getExpectedRoleFromPath = (): 'admin' | 'professor' | 'student' | null => {
+    if (pathname.startsWith('/dashboard/admin')) return 'admin';
+    if (pathname.startsWith('/dashboard/professor')) return 'professor';
+    if (pathname.startsWith('/dashboard/student')) return 'student';
+    return null;
+  };
+
+  const expectedRole = getExpectedRoleFromPath();
+  const hasRoleMismatch = !!user && !!expectedRole && user.role !== expectedRole;
+
   // Redirect to login if not authenticated
   useEffect(() => {
     if (!authLoading && !user) {
       router.push('/');
     }
   }, [user, authLoading, router]);
+
+  useEffect(() => {
+    if (!authLoading && user && expectedRole && user.role !== expectedRole) {
+      router.replace(`/dashboard/${user.role}`);
+    }
+  }, [authLoading, user, expectedRole, router]);
+
+  if (!authLoading && (!user || hasRoleMismatch)) {
+    return null;
+  }
 
   // Get user info - use actual logged-in user if available, otherwise fallback to mock
   const getUser = () => {

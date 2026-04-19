@@ -4,6 +4,12 @@ import type { NextRequest } from 'next/server';
 // Edge Runtime compatible JWT verification using jose
 import { jwtVerify } from 'jose';
 
+type TokenPayload = {
+  userId: string;
+  email: string;
+  role: 'student' | 'professor' | 'admin';
+};
+
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 export async function middleware(request: NextRequest) {
@@ -32,7 +38,41 @@ export async function middleware(request: NextRequest) {
 
     try {
       const secret = new TextEncoder().encode(JWT_SECRET);
-      await jwtVerify(token, secret);
+      const { payload } = await jwtVerify(token, secret);
+      const tokenRole = (payload as TokenPayload).role;
+
+      if (pathname.startsWith('/dashboard')) {
+        const expectedRole =
+          pathname.startsWith('/dashboard/admin')
+            ? 'admin'
+            : pathname.startsWith('/dashboard/professor')
+              ? 'professor'
+              : pathname.startsWith('/dashboard/student')
+                ? 'student'
+                : null;
+
+        if (!tokenRole) {
+          return NextResponse.redirect(new URL('/', request.url));
+        }
+
+        if (expectedRole && tokenRole !== expectedRole) {
+          return NextResponse.redirect(new URL(`/dashboard/${tokenRole}`, request.url));
+        }
+      }
+
+      if (pathname.startsWith('/api/')) {
+        const expectedApiRole =
+          pathname.startsWith('/api/admin/')
+            ? 'admin'
+            : pathname.startsWith('/api/professors/')
+              ? 'professor'
+              : null;
+
+        if (expectedApiRole && tokenRole !== expectedApiRole) {
+          return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
+      }
+
       return NextResponse.next();
     } catch (error) {
       if (pathname.startsWith('/api/')) {

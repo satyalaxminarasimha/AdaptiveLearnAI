@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/sheet';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
+import { apiGetJsonCached, invalidateApiCache } from '@/lib/api';
 
 type Message = {
     sender: string;
@@ -94,14 +95,8 @@ export function AiChatTutor({ user }: { user: CurrentUser }) {
 
   const loadChatSessions = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/chat-sessions?limit=5', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setSessions(data.sessions);
-      }
+      const data = await apiGetJsonCached<{ sessions: ChatSessionType[] }>('/api/chat-sessions?limit=5', {}, 30_000);
+      setSessions(data.sessions || []);
     } catch (error) {
       console.error('Failed to load chat sessions:', error);
     }
@@ -129,6 +124,7 @@ export function AiChatTutor({ user }: { user: CurrentUser }) {
         }),
       });
 
+      invalidateApiCache('/api/chat-sessions');
       await loadChatSessions();
     } catch (error) {
       console.error('Failed to save chat:', error);
@@ -180,6 +176,14 @@ export function AiChatTutor({ user }: { user: CurrentUser }) {
 
       // For actual questions, call the AI endpoint
       const userRole = authUser?.role || 'student';
+      const professorClassRaw = localStorage.getItem('professorClass');
+      const professorClass = professorClassRaw ? (() => {
+        try {
+          return JSON.parse(professorClassRaw) as { batch?: string; section?: string; subject?: string; semester?: string; year?: string };
+        } catch {
+          return null;
+        }
+      })() : null;
 
       // Fetch real user data for context
       let studentQuizHistory = '';
@@ -232,6 +236,11 @@ export function AiChatTutor({ user }: { user: CurrentUser }) {
           subjectSyllabus: `${authUser?.batch || ''} ${authUser?.section || ''} curriculum`,
           weakAreas: weakAreas || 'No specific weak areas identified yet',
           difficultyLevel: 'medium',
+          batch: professorClass?.batch || authUser?.batch || '',
+          section: professorClass?.section || authUser?.section || '',
+          subject: professorClass?.subject || '',
+          year: professorClass?.year || '',
+          semester: professorClass?.semester || '',
         }),
       });
 

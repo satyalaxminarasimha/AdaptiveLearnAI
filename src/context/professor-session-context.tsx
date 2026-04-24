@@ -2,6 +2,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { apiGetJsonCached } from '@/lib/api';
 
 export type ProfessorClass = {
   batch: string;
@@ -39,16 +40,10 @@ export function ProfessorSessionProvider({ children }: { children: ReactNode }) 
     try {
       const token = window.localStorage.getItem('token');
       if (!token) return [];
-      
-      const res = await fetch('/api/professors/classes', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      
-      if (res.ok) {
-        const classes = await res.json();
-        setAvailableClasses(classes);
-        return classes;
-      }
+
+      const classes = await apiGetJsonCached<ProfessorClass[]>('/api/professors/classes', {}, 30_000);
+      setAvailableClasses(classes);
+      return classes;
     } catch (error) {
       console.error('Failed to fetch professor classes:', error);
     }

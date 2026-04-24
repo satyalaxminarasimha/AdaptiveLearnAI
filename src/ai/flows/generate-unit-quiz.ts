@@ -13,6 +13,7 @@ const GenerateUnitQuizInputSchema = z.object({
   subject: z.string().describe('The subject name'),
   topics: z.array(z.string()).describe('List of topics in this unit'),
   numberOfQuestions: z.number().default(30).describe('Number of questions to generate'),
+  referenceContext: z.string().optional().describe('Relevant syllabus and textbook context from the database.'),
 });
 export type GenerateUnitQuizInput = z.infer<typeof GenerateUnitQuizInputSchema>;
 
@@ -51,6 +52,9 @@ Subject: {{{subject}}}
 Unit: {{{unitName}}}
 Number of Questions Required: {{{numberOfQuestions}}}
 
+Relevant Database Context:
+{{{referenceContext}}}
+
 Topics to cover in this unit:
 {{#each topics}}
 - {{this}}
@@ -65,6 +69,7 @@ IMPORTANT INSTRUCTIONS:
 6. Identify the specific subtopic/concept being tested
 7. List prerequisite concepts students should know
 8. Questions should test conceptual understanding, not just memorization
+9. Prefer the retrieved database context over generic knowledge when it is available
 
 For difficulty distribution:
 - Easy (30%): Direct concept recall and basic understanding

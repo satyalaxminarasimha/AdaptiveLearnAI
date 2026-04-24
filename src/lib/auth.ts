@@ -9,14 +9,50 @@ export interface JWTPayload {
   role: 'student' | 'professor' | 'admin';
 }
 
+const VALID_ROLES = new Set(['student', 'professor', 'admin']);
+
+function getForwardedPayload(request: NextRequest): JWTPayload | null {
+  const raw = request.headers.get('x-auth-payload');
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<JWTPayload>;
+    if (
+      typeof parsed.userId === 'string' &&
+      typeof parsed.email === 'string' &&
+      typeof parsed.role === 'string' &&
+      VALID_ROLES.has(parsed.role)
+    ) {
+      return {
+        userId: parsed.userId,
+        email: parsed.email,
+        role: parsed.role as JWTPayload['role'],
+      };
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
 export function verifyToken(request: NextRequest): JWTPayload | null {
   try {
+    const forwardedPayload = getForwardedPayload(request);
+    if (forwardedPayload) {
+      return forwardedPayload;
+    }
+
+    const cookieToken = request.cookies.get('token')?.value;
     const authHeader = request.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    const token = cookieToken || (authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null);
+
+    if (!token) {
       return null;
     }
 
-    const token = authHeader.substring(7);
     const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload;
     return decoded;
   } catch (error) {

@@ -33,6 +33,35 @@ interface Message {
   timestamp: string;
 }
 
+function normalizeMessages(items: Message[]): Message[] {
+  return items
+    .slice()
+    .sort((a, b) => {
+      const timeDiff = getOrderKey(a) - getOrderKey(b);
+      if (timeDiff !== 0) return timeDiff;
+      return String(a._id || '').localeCompare(String(b._id || ''));
+    });
+}
+
+function getOrderKey(item: Message) {
+  const parsed = Date.parse(item.timestamp);
+  if (Number.isFinite(parsed)) {
+    return parsed;
+  }
+
+  const id = String(item._id || '');
+  if (/^[a-fA-F0-9]{24}$/.test(id)) {
+    return parseInt(id.slice(0, 8), 16) * 1000;
+  }
+
+  return 0;
+}
+
+function toTimestamp(value: string) {
+  const ts = new Date(value).getTime();
+  return Number.isFinite(ts) ? ts : 0;
+}
+
 export default function StudentPublicChatPage() {
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
   const [selectedRoom, setSelectedRoom] = useState<ChatRoom | null>(null);
@@ -45,6 +74,9 @@ export default function StudentPublicChatPage() {
   const { toast } = useToast();
   const { user } = useAuth();
   const { session } = useStudentSession();
+  const orderedMessages = messages
+    .slice()
+    .sort((a, b) => toTimestamp(a.timestamp) - toTimestamp(b.timestamp));
 
   const fetchChatRooms = useCallback(async () => {
     if (!session?.batch || !session?.section) {
@@ -88,9 +120,50 @@ export default function StudentPublicChatPage() {
   useEffect(() => {
     if (selectedRoom) {
       fetchMessages();
-      // Poll for new messages every 5 seconds
-      const interval = setInterval(fetchMessages, 5000);
-      return () => clearInterval(interval);
+
+      const token = localStorage.getItem('token');
+      const streamUrl = token
+        ? `/api/public-chat/${selectedRoom._id}/stream?token=${encodeURIComponent(token)}`
+        : `/api/public-chat/${selectedRoom._id}/stream`;
+
+      const source = new EventSource(streamUrl);
+      source.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data) as {
+            type?: string;
+            roomId?: string;
+            newMessage?: Message;
+            participantCount?: number;
+          };
+
+          if (payload.type !== 'new-message' || payload.roomId !== selectedRoom._id || !payload.newMessage) {
+            return;
+          }
+
+          setMessages((prev) => {
+            if (prev.some((msg) => msg._id === payload.newMessage?._id)) {
+              return prev;
+            }
+            return normalizeMessages([...prev, payload.newMessage as Message]);
+          });
+
+          if (typeof payload.participantCount === 'number') {
+            setSelectedRoom((prev) =>
+              prev ? { ...prev, participantCount: payload.participantCount } : prev
+            );
+          }
+        } catch {
+          // ignore malformed events
+        }
+      };
+
+      source.onerror = () => {
+        // EventSource auto-reconnects; avoid tight polling loops that cause UI jitter.
+      };
+
+      return () => {
+        source.close();
+      };
     }
   }, [selectedRoom]);
 
@@ -107,7 +180,7 @@ export default function StudentPublicChatPage() {
       });
       if (res.ok) {
         const data = await res.json();
-        setMessages(data.messages || []);
+        setMessages(normalizeMessages(data.messages || []));
       }
     } catch (error) {
       console.error('Failed to fetch messages:', error);
@@ -131,8 +204,23 @@ export default function StudentPublicChatPage() {
       });
 
       if (res.ok) {
+        const data = await res.json();
         setNewMessage('');
-        fetchMessages();
+
+        if (data.newMessage) {
+          setMessages((prev) => {
+            if (prev.some((msg) => msg._id === data.newMessage._id)) {
+              return prev;
+            }
+            return normalizeMessages([...prev, data.newMessage as Message]);
+          });
+        }
+
+        if (typeof data.participantCount === 'number') {
+          setSelectedRoom((prev) =>
+            prev ? { ...prev, participantCount: data.participantCount } : prev
+          );
+        }
       } else {
         toast({
           variant: 'destructive',
@@ -276,7 +364,7 @@ export default function StudentPublicChatPage() {
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {messages.map((msg, idx) => (
+                      {orderedMessages.map((msg, idx) => (
                         <div
                           key={idx}
                           className={`flex gap-3 ${msg.senderId === user?.id ? 'justify-end' : ''}`}

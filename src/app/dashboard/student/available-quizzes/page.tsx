@@ -23,6 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ListChecks, ArrowRight, Clock, BookOpen, Calendar, AlertCircle, CheckCircle2, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { apiGetJsonCached } from '@/lib/api';
 
 interface Quiz {
   _id: string;
@@ -46,30 +47,19 @@ export default function AvailableQuizzesPage() {
   useEffect(() => {
     const fetchQuizzes = async () => {
       try {
-        const token = localStorage.getItem('token');
-        
-        // Fetch quizzes
-        const response = await fetch('/api/quizzes?isActive=true', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        
-        // Fetch user's attempts
-        const attemptsRes = await fetch('/api/quiz-attempts', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          const attempts = attemptsRes.ok ? await attemptsRes.json() : [];
-          const attemptedQuizIds = new Set(attempts.map((a: any) => a.quizId?._id || a.quizId));
-          
-          setQuizzes(data.map((q: any) => ({
-            ...q,
-            totalQuestions: q.questions?.length || 0,
-            status: attemptedQuizIds.has(q._id) ? 'Completed' : 'Available',
-            hasAttempted: attemptedQuizIds.has(q._id),
-          })));
-        }
+        const [data, attempts] = await Promise.all([
+          apiGetJsonCached<any[]>('/api/quizzes?isActive=true', {}, 20_000),
+          apiGetJsonCached<any[]>('/api/quiz-attempts', {}, 20_000),
+        ]);
+
+        const attemptedQuizIds = new Set(attempts.map((a: any) => a.quizId?._id || a.quizId));
+
+        setQuizzes(data.map((q: any) => ({
+          ...q,
+          totalQuestions: q.questions?.length || 0,
+          status: attemptedQuizIds.has(q._id) ? 'Completed' : 'Available',
+          hasAttempted: attemptedQuizIds.has(q._id),
+        })));
       } catch (error) {
         console.error('Error fetching quizzes:', error);
       } finally {

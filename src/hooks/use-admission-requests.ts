@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { apiRequest } from '@/lib/api';
+import { apiGetJsonCached, apiRequest, invalidateApiCache } from '@/lib/api';
 
 interface AdmissionRequest {
   _id: string;
@@ -21,13 +21,9 @@ export function useAdmissionRequests() {
 
   const fetchRequests = async () => {
     try {
-      const response = await apiRequest('/api/users?approved=false');
-      if (response.ok) {
-        const data = await response.json();
-        setRequests(data);
-      } else {
-        setError('Failed to fetch requests');
-      }
+      const data = await apiGetJsonCached<AdmissionRequest[]>('/api/users?approved=false', {}, 20_000);
+      setRequests(data);
+      setError(null);
     } catch (err) {
       setError('Network error');
     } finally {
@@ -52,6 +48,7 @@ export function useAdmissionRequests() {
       });
 
       if (response.ok) {
+        invalidateApiCache('/api/users');
         setRequests(prev => prev.filter(req => req._id !== userId));
         return { success: true };
       } else {
@@ -70,6 +67,7 @@ export function useAdmissionRequests() {
       });
 
       if (response.ok) {
+        invalidateApiCache('/api/users');
         setRequests(prev => prev.filter(req => req._id !== userId));
         return { success: true };
       } else {

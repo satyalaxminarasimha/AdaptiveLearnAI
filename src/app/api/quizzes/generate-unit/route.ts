@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Quiz from '@/models/Quiz';
+import Syllabus from '@/models/Syllabus';
+import ProcessedTextbook from '@/models/ProcessedTextbook';
 import { verifyToken } from '@/lib/auth';
 import { generateUnitQuiz } from '@/ai/flows/generate-unit-quiz';
+import { buildKnowledgeContext, parseUnitNumber } from '@/lib/knowledge-context';
 
 export async function POST(request: NextRequest) {
   try {
@@ -38,11 +41,41 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const normalizedBatch = batch?.includes(' - ') ? batch.split(' - ')[0].trim() : batch;
+    const resolvedUnitNumber = unitNumber || parseUnitNumber(unitName) || undefined;
+
+    const knowledgeContext = await buildKnowledgeContext(request.nextUrl.origin, {
+      batch: normalizedBatch,
+      section,
+      subject,
+      year: year?.toString(),
+      semester: semester?.toString(),
+      unitName,
+      unitNumber: resolvedUnitNumber,
+      topics,
+      question: `${subject} ${unitName} ${topics.join(' ')}`,
+      limit: 6,
+    });
+
+    const syllabus = await Syllabus.findOne({
+      batch: normalizedBatch,
+      section,
+      year: year?.toString(),
+      semester: semester?.toString(),
+    }).sort({ updatedAt: -1 });
+
+    const matchingTextbook = await ProcessedTextbook.findOne({
+      batch: normalizedBatch,
+      section,
+      subject,
+      status: 'completed',
+    }).sort({ processedAt: -1, updatedAt: -1 });
+
     // Check if quiz already exists for this unit
     const existingQuiz = await Quiz.findOne({
       subject,
       unitName,
-      batch,
+      batch: normalizedBatch,
       section,
       isActive: true,
     });
@@ -60,7 +93,22 @@ export async function POST(request: NextRequest) {
       return match ? match[1] : t;
     });
 
-    console.log(`Generating AI quiz for ${subject} - ${unitName} with ${topicNames.length} topics...`);
+    const syllabusSubject = syllabus?.subjects?.find(
+      (currentSubject: { name: string; code?: string; unitsDetailed?: Array<{ unitNumber: string; topics?: Array<{ topic: string }> }> }) =>
+        currentSubject.name === subject || currentSubject.code === subject
+    );
+
+    const syllabusTopics = syllabusSubject?.unitsDetailed?.flatMap((unit) =>
+      (unit.topics || []).map((topic) => topic.topic).filter(Boolean)
+    ) || [];
+
+    const effectiveTopics = topicNames.length > 0 ? topicNames : syllabusTopics;
+    const referenceContext = [
+      knowledgeContext.syllabusSummary,
+      knowledgeContext.textbookContext,
+    ].filter(Boolean).join('\n\n');
+
+    console.log(`Generating AI quiz for ${subject} - ${unitName} with ${effectiveTopics.length} topics...`);
 
     // Generate quiz using AI
     let aiResult;
@@ -68,8 +116,9 @@ export async function POST(request: NextRequest) {
       aiResult = await generateUnitQuiz({
         unitName,
         subject,
-        topics: topicNames,
+        topics: effectiveTopics,
         numberOfQuestions,
+        referenceContext,
       });
     } catch (aiError: any) {
       console.error('AI generation error:', aiError);
@@ -118,12 +167,15 @@ export async function POST(request: NextRequest) {
       subject,
       topics,
       unitName,
-      unitNumber: unitNumber || parseUnitNumber(unitName),
+      unitNumber: resolvedUnitNumber || parseUnitNumber(unitName),
+      sourceSyllabusId: knowledgeContext.syllabusId || syllabus?._id,
+      sourceTextbookId: knowledgeContext.textbookId || matchingTextbook?.textbookId,
+      knowledgeContext: referenceContext,
       questions,
       createdBy: payload.userId,
       isActive: true,
       isAIGenerated: true,
-      batch,
+      batch: normalizedBatch,
       section,
       year,
       semester,

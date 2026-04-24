@@ -214,6 +214,19 @@ const ProfessorNav = () => {
       </SidebarMenuItem>
       <SidebarMenuItem>
         <SidebarMenuButton 
+          href="/dashboard/professor/textbook-upload" 
+          tooltip="Upload Textbook"
+          className={cn(
+            "transition-all duration-200",
+            pathname === '/dashboard/professor/textbook-upload' && "bg-sidebar-accent text-sidebar-accent-foreground"
+          )}
+        >
+          <UploadCloud className="transition-transform group-hover:scale-110" />
+          Upload Textbook
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+      <SidebarMenuItem>
+        <SidebarMenuButton 
           href="/dashboard/professor/timetable" 
           tooltip="Classroom Timetable"
           className={cn(

@@ -13,6 +13,7 @@ import {z} from 'genkit';
 const AIChatTutorInputSchema = z.object({
   studentQuizHistory: z.string().describe('The student\'s quiz history.'),
   subjectSyllabus: z.string().describe('The subject syllabus.'),
+  knowledgeContext: z.string().optional().describe('Additional context retrieved from the database.'),
   difficultyLevel: z.string().describe('The difficulty level of the questions.'),
   weakAreas: z.string().describe('The student\'s weak areas.'),
   question: z.string().describe('The question asked by the student.'),
@@ -50,6 +51,7 @@ Analyze the context provided (including the user's role and quiz history) and pr
 Context:
 - User Information: {{{studentQuizHistory}}}
 - Subject Material: {{{subjectSyllabus}}}
+- Retrieved Knowledge Context: {{{knowledgeContext}}}
 - Focus Areas: {{{weakAreas}}}
 - Difficulty Level: {{{difficultyLevel}}}
 `,

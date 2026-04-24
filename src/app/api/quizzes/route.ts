@@ -3,13 +3,15 @@ import dbConnect from '@/lib/mongodb';
 import Quiz from '@/models/Quiz';
 import User from '@/models/User';
 import { verifyToken } from '@/lib/auth';
+import { withApiTiming } from '@/lib/api-timing';
 
 export async function GET(request: NextRequest) {
-  try {
-    const payload = verifyToken(request);
-    if (!payload) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+  return withApiTiming('GET /api/quizzes', async () => {
+    try {
+      const payload = verifyToken(request);
+      if (!payload) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
 
     await dbConnect();
 
@@ -34,16 +36,24 @@ export async function GET(request: NextRequest) {
       if (student?.section) query.section = student.section;
     }
 
-    const quizzes = await Quiz.find(query).populate('createdBy', 'name').sort({ createdAt: -1 });
+      const quizzes = await Quiz.find(query)
+        .populate('createdBy', 'name')
+        .sort({ createdAt: -1 })
+        .lean();
 
-    return NextResponse.json(quizzes);
-  } catch (error) {
-    console.error('Get quizzes error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
-  }
+      return NextResponse.json(quizzes, {
+        headers: {
+          'Cache-Control': 'private, max-age=20, stale-while-revalidate=60',
+        },
+      });
+    } catch (error) {
+      console.error('Get quizzes error:', error);
+      return NextResponse.json(
+        { error: 'Internal server error' },
+        { status: 500 }
+      );
+    }
+  });
 }
 
 export async function POST(request: NextRequest) {

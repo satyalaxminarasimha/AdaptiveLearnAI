@@ -2,14 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import User from '@/models/User';
 import { verifyToken } from '@/lib/auth';
+import { withApiTiming } from '@/lib/api-timing';
 
 // GET - Get professor's classes
 export async function GET(request: NextRequest) {
-  try {
-    const payload = verifyToken(request);
-    if (!payload) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+  return withApiTiming('GET /api/professors/classes', async () => {
+    try {
+      const payload = verifyToken(request);
+      if (!payload) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
 
     if (payload.role !== 'professor') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -37,11 +39,16 @@ export async function GET(request: NextRequest) {
       await professor.save();
     }
 
-    return NextResponse.json(classes);
-  } catch (error) {
-    console.error('Get professor classes error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
+      return NextResponse.json(classes, {
+        headers: {
+          'Cache-Control': 'private, max-age=20, stale-while-revalidate=60',
+        },
+      });
+    } catch (error) {
+      console.error('Get professor classes error:', error);
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    }
+  });
 }
 
 // POST - Add a new class

@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import mongoose from 'mongoose';
 import dbConnect from '@/lib/mongodb';
 import PublicChat from '@/models/PublicChat';
 import User from '@/models/User';
 import { verifyToken } from '@/lib/auth';
+import { publishRoomMessage } from '@/lib/public-chat-events';
 
 // GET - Get messages from a specific chat room
 export async function GET(
@@ -22,18 +24,27 @@ export async function GET(
     const limit = parseInt(searchParams.get('limit') || '50');
     const skip = parseInt(searchParams.get('skip') || '0');
 
-    const chatRoom = await PublicChat.findById(roomId)
-      .populate('professorId', 'name expertise')
-      .populate('participants', 'name role');
+    const [chatRoom, chatMessages] = await Promise.all([
+      PublicChat.findById(roomId)
+        .populate('professorId', 'name expertise')
+        .select('roomType batch section subject professorId participants')
+        .lean(),
+      PublicChat.findById(roomId)
+        .select({ messages: { $slice: -(Math.max(limit, 1) + Math.max(skip, 0)) } })
+        .lean(),
+    ]);
 
     if (!chatRoom) {
       return NextResponse.json({ error: 'Chat room not found' }, { status: 404 });
     }
 
-    // Get paginated messages (most recent first)
-    const messages = chatRoom.messages
-      .slice(-limit - skip, skip === 0 ? undefined : -skip)
-      .reverse();
+    // Return messages in chronological order so chat UI can append and stay anchored at bottom.
+    const allMessages = ((chatMessages?.messages as Array<Record<string, unknown>>) || []).slice();
+    const boundedSkip = Math.max(0, skip);
+    const boundedLimit = Math.max(1, limit);
+    const end = Math.max(0, allMessages.length - boundedSkip);
+    const start = Math.max(0, end - boundedLimit);
+    const messages = allMessages.slice(start, end);
 
     return NextResponse.json({
       roomId: chatRoom._id,
@@ -42,7 +53,7 @@ export async function GET(
       section: chatRoom.section,
       subject: chatRoom.subject,
       professor: chatRoom.professorId,
-      participantCount: chatRoom.participants.length,
+      participantCount: Array.isArray(chatRoom.participants) ? chatRoom.participants.length : 0,
       messages,
     });
   } catch (error) {
@@ -78,13 +89,14 @@ export async function POST(
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    const chatRoom = await PublicChat.findById(roomId);
+    const chatRoom = await PublicChat.findById(roomId).select('_id participants');
     if (!chatRoom) {
       return NextResponse.json({ error: 'Chat room not found' }, { status: 404 });
     }
 
     // Add message
     const newMessage = {
+      _id: new mongoose.Types.ObjectId(),
       senderId: payload.userId,
       senderName: user.name,
       senderRole: user.role as 'student' | 'professor',
@@ -92,18 +104,35 @@ export async function POST(
       timestamp: new Date(),
     };
 
-    chatRoom.messages.push(newMessage);
+    const updatedRoom = await PublicChat.findByIdAndUpdate(
+      roomId,
+      {
+        $push: { messages: newMessage },
+        $addToSet: { participants: payload.userId },
+      },
+      {
+        new: true,
+        select: 'participants',
+      }
+    ).lean();
 
-    // Add user to participants if not already
-    if (!chatRoom.participants.includes(payload.userId)) {
-      chatRoom.participants.push(payload.userId);
-    }
+    const participantCount = Array.isArray(updatedRoom?.participants)
+      ? updatedRoom.participants.length
+      : Array.isArray(chatRoom.participants)
+        ? chatRoom.participants.length
+        : 0;
 
-    await chatRoom.save();
+    publishRoomMessage(roomId, {
+      type: 'new-message',
+      roomId,
+      newMessage,
+      participantCount,
+    });
 
     return NextResponse.json({
       message: 'Message sent',
       newMessage,
+      participantCount,
     });
   } catch (error) {
     console.error('Send message error:', error);

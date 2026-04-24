@@ -22,6 +22,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useStudentSession } from '@/context/student-session-context';
 import { Separator } from '@/components/ui/separator';
 import { BarChart3, PieChart as PieChartIcon, Trophy, Medal, TrendingUp, AlertCircle } from 'lucide-react';
+import { apiGetJsonCached } from '@/lib/api';
 
 // Chart configs
 const studentQuizAnalysisChartConfig = {
@@ -53,37 +54,24 @@ export default function StudentAnalysisPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const token = localStorage.getItem('token');
-        if (!token) {
-          setIsLoading(false);
-          return;
-        }
-        const headers = { 'Authorization': `Bearer ${token}` };
-
         // Fetch quiz attempts and total quiz count in parallel
-        const [attemptsRes, quizzesRes] = await Promise.all([
-          fetch('/api/quiz-attempts', { headers }),
-          fetch('/api/quizzes?isActive=true', { headers }),
+        const [attempts, quizzes] = await Promise.all([
+          apiGetJsonCached<any[]>('/api/quiz-attempts', {}, 20_000),
+          apiGetJsonCached<any[]>('/api/quizzes?isActive=true', {}, 20_000),
         ]);
 
-        if (attemptsRes.ok) {
-          const attempts = await attemptsRes.json();
-          setQuizAttempts(Array.isArray(attempts) ? attempts : []);
-          
-          // Extract unique subjects from attempts
-          // API populates quizId with quiz object containing {title, subject, ...}
-          const uniqueSubjects = [...new Set(
-            (Array.isArray(attempts) ? attempts : [])
-              .map((a: any) => a.quizId?.subject)
-              .filter(Boolean)
-          )];
-          setSubjects(uniqueSubjects as string[]);
-        }
+        setQuizAttempts(Array.isArray(attempts) ? attempts : []);
 
-        if (quizzesRes.ok) {
-          const quizzes = await quizzesRes.json();
-          setTotalQuizCount(Array.isArray(quizzes) ? quizzes.length : 0);
-        }
+        // Extract unique subjects from attempts
+        // API populates quizId with quiz object containing {title, subject, ...}
+        const uniqueSubjects = [...new Set(
+          (Array.isArray(attempts) ? attempts : [])
+            .map((a: any) => a.quizId?.subject)
+            .filter(Boolean)
+        )];
+        setSubjects(uniqueSubjects as string[]);
+
+        setTotalQuizCount(Array.isArray(quizzes) ? quizzes.length : 0);
       } catch (err) {
         console.error('Error fetching analysis data:', err);
       } finally {

@@ -116,5 +116,7 @@ const QuizAttemptSchema: Schema = new Schema({
 QuizAttemptSchema.index({ studentId: 1, quizId: 1 });
 QuizAttemptSchema.index({ quizId: 1, percentage: -1 }); // For ranking
 QuizAttemptSchema.index({ studentId: 1, subject: 1 });
+QuizAttemptSchema.index({ studentId: 1, attemptedAt: -1 });
+QuizAttemptSchema.index({ quizId: 1, attemptedAt: -1 });
 
 export default mongoose.models.QuizAttempt || mongoose.model<IQuizAttempt>('QuizAttempt', QuizAttemptSchema);

@@ -2,14 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import ChangeRequest from '@/models/ChangeRequest';
 import { verifyToken } from '@/lib/auth';
+import { withApiTiming } from '@/lib/api-timing';
 
 // GET - Get all change requests (for admin) or user's own requests
 export async function GET(request: NextRequest) {
-  try {
-    const payload = verifyToken(request);
-    if (!payload) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+  return withApiTiming('GET /api/change-requests', async () => {
+    try {
+      const payload = verifyToken(request);
+      if (!payload) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
 
     await dbConnect();
 
@@ -27,16 +29,22 @@ export async function GET(request: NextRequest) {
       query = { ...query, status };
     }
 
-    const requests = await ChangeRequest.find(query)
-      .populate('userId', 'name email role')
-      .populate('reviewedBy', 'name')
-      .sort({ createdAt: -1 });
+      const requests = await ChangeRequest.find(query)
+        .populate('userId', 'name email role')
+        .populate('reviewedBy', 'name')
+        .sort({ createdAt: -1 })
+        .lean();
 
-    return NextResponse.json(requests);
-  } catch (error) {
-    console.error('Get change requests error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
+      return NextResponse.json(requests, {
+        headers: {
+          'Cache-Control': 'private, max-age=15, stale-while-revalidate=45',
+        },
+      });
+    } catch (error) {
+      console.error('Get change requests error:', error);
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    }
+  });
 }
 
 // POST - Create a new change request

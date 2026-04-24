@@ -3,17 +3,40 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import dbConnect from '@/lib/mongodb';
 import User from '@/models/User';
+import { withApiTiming } from '@/lib/api-timing';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 export async function POST(request: NextRequest) {
-  try {
-    await dbConnect();
+  return withApiTiming('POST /api/auth/login', async () => {
+    try {
+      await dbConnect();
 
     const { email, password, role } = await request.json();
 
-    // Find user
-    const user = await User.findOne({ email });
+    const normalizedEmail = String(email || '').trim();
+
+    // Fetch only fields needed during authentication to reduce query cost.
+    const user = await User.findOne({ email: normalizedEmail })
+      .select([
+        '_id',
+        'name',
+        'email',
+        'role',
+        'isApproved',
+        'avatarUrl',
+        'rollNo',
+        'batch',
+        'section',
+        'branch',
+        'semester',
+        'department',
+        'expertise',
+        'phoneNumber',
+        'password',
+      ].join(' '))
+      .lean();
+
     if (!user) {
       return NextResponse.json(
         { error: 'Invalid credentials' },
@@ -56,8 +79,7 @@ export async function POST(request: NextRequest) {
       { expiresIn: '7d' }
     );
 
-    // Return user and token
-    const { password: _, ...userWithoutPassword } = user.toObject();
+    const { password: _password, ...userWithoutPassword } = user;
 
     // Create response with cookie
     const response = NextResponse.json({
@@ -75,12 +97,13 @@ export async function POST(request: NextRequest) {
       path: '/',
     });
 
-    return response;
-  } catch (error) {
-    console.error('Login error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
-  }
+      return response;
+    } catch (error) {
+      console.error('Login error:', error);
+      return NextResponse.json(
+        { error: 'Internal server error' },
+        { status: 500 }
+      );
+    }
+  });
 }

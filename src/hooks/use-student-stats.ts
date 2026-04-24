@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/auth-context';
+import { apiGetJsonCached } from '@/lib/api';
 
 interface StatItem {
   title: string;
@@ -41,30 +42,20 @@ export function useStudentStats() {
 
     try {
       setIsLoading(true);
-      const token = localStorage.getItem('token');
-      const headers = { 'Authorization': `Bearer ${token}` };
-
       // Fetch quizzes
-      const quizzesRes = await fetch('/api/quizzes', { headers });
       let availableQuizzes: Quiz[] = [];
-      if (quizzesRes.ok) {
-        const quizzesData = await quizzesRes.json();
-        availableQuizzes = quizzesData.map((q: any) => ({
-          id: q._id,
-          title: q.title,
-          subject: q.subject,
-          status: 'Available'
-        }));
-        setQuizzes(availableQuizzes);
-      }
+      const quizzesData = await apiGetJsonCached<any[]>('/api/quizzes', {}, 30_000);
+      availableQuizzes = quizzesData.map((q: any) => ({
+        id: q._id,
+        title: q.title,
+        subject: q.subject,
+        status: 'Available'
+      }));
+      setQuizzes(availableQuizzes);
 
       // Fetch quiz attempts
-      const attemptsRes = await fetch('/api/quiz-attempts', { headers });
-      let attemptedCount = 0;
-      if (attemptsRes.ok) {
-        const attemptsData = await attemptsRes.json();
-        attemptedCount = attemptsData.length;
-      }
+      const attemptsData = await apiGetJsonCached<any[]>('/api/quiz-attempts', {}, 20_000);
+      const attemptedCount = attemptsData.length;
 
       // Calculate stats
       const totalQuizzes = availableQuizzes.length;
@@ -78,21 +69,19 @@ export function useStudentStats() {
 
       // Fetch syllabus progress
       if (user.batch && user.section) {
-        const syllabusRes = await fetch(
+        const syllabusData = await apiGetJsonCached<any[]>(
           `/api/syllabus?batch=${user.batch}&section=${user.section}`,
-          { headers }
+          {},
+          60_000
         );
-        if (syllabusRes.ok) {
-          const syllabusData = await syllabusRes.json();
-          if (syllabusData.length > 0 && syllabusData[0].subjects) {
-            const progress = syllabusData[0].subjects.map((s: any) => ({
-              subject: s.name,
-              progress: s.totalTopics > 0 
-                ? Math.round((s.completedTopics / s.totalTopics) * 100) 
-                : 0
-            }));
-            setSubjectProgress(progress);
-          }
+        if (syllabusData.length > 0 && syllabusData[0].subjects) {
+          const progress = syllabusData[0].subjects.map((s: any) => ({
+            subject: s.name,
+            progress: s.totalTopics > 0 
+              ? Math.round((s.completedTopics / s.totalTopics) * 100) 
+              : 0
+          }));
+          setSubjectProgress(progress);
         }
       }
 

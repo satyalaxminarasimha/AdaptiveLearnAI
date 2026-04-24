@@ -38,4 +38,9 @@ const ChangeRequestSchema: Schema = new Schema({
   timestamps: true,
 });
 
+// Indexes for admin and user request feeds
+ChangeRequestSchema.index({ userId: 1, createdAt: -1 });
+ChangeRequestSchema.index({ status: 1, createdAt: -1 });
+ChangeRequestSchema.index({ userId: 1, status: 1, createdAt: -1 });
+
 export default mongoose.models.ChangeRequest || mongoose.model<IChangeRequest>('ChangeRequest', ChangeRequestSchema);

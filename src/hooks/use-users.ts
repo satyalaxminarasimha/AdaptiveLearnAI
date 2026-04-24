@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { apiRequest } from '@/lib/api';
+import { apiGetJsonCached, apiRequest, invalidateApiCache } from '@/lib/api';
 
 export interface User {
   _id: string;
@@ -26,14 +26,11 @@ export function useUsers(role?: string) {
       setIsLoading(true);
       const params = new URLSearchParams();
       if (role) params.append('role', role);
-      
-      const response = await apiRequest(`/api/users?${params.toString()}`);
-      if (response.ok) {
-        const data = await response.json();
-        setUsers(data);
-      } else {
-        setError('Failed to fetch users');
-      }
+
+      const endpoint = `/api/users?${params.toString()}`;
+      const data = await apiGetJsonCached<User[]>(endpoint, {}, 20_000);
+      setUsers(data);
+      setError(null);
     } catch (err) {
       setError('Network error');
     } finally {
@@ -55,6 +52,7 @@ export function useUsers(role?: string) {
       
       if (response.ok) {
         const data = await response.json();
+        invalidateApiCache('/api/users');
         setUsers(prev => prev.map(u => u._id === userId ? { ...u, ...data.user } : u));
         return { success: true };
       } else {
@@ -73,6 +71,7 @@ export function useUsers(role?: string) {
       });
       
       if (response.ok) {
+        invalidateApiCache('/api/users');
         setUsers(prev => prev.filter(u => u._id !== userId));
         return { success: true };
       } else {

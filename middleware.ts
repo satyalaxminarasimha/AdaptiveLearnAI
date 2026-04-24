@@ -11,6 +11,7 @@ type TokenPayload = {
 };
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const JWT_SECRET_BYTES = new TextEncoder().encode(JWT_SECRET);
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -27,7 +28,11 @@ export async function middleware(request: NextRequest) {
 
   // Protected routes
   if (pathname.startsWith('/dashboard') || pathname.startsWith('/api/')) {
-    const token = request.cookies.get('token')?.value || request.headers.get('authorization')?.replace('Bearer ', '');
+    const queryToken = request.nextUrl.searchParams.get('token');
+    const token =
+      request.cookies.get('token')?.value ||
+      request.headers.get('authorization')?.replace('Bearer ', '') ||
+      (pathname.startsWith('/api/public-chat/') && pathname.endsWith('/stream') ? queryToken || undefined : undefined);
 
     if (!token) {
       if (pathname.startsWith('/api/')) {
@@ -37,9 +42,20 @@ export async function middleware(request: NextRequest) {
     }
 
     try {
-      const secret = new TextEncoder().encode(JWT_SECRET);
-      const { payload } = await jwtVerify(token, secret);
-      const tokenRole = (payload as TokenPayload).role;
+      const { payload } = await jwtVerify(token, JWT_SECRET_BYTES);
+      const tokenPayload = payload as TokenPayload;
+      const tokenRole = tokenPayload.role;
+
+      // Forward verified auth payload so route handlers can skip verifying the same token again.
+      const requestHeaders = new Headers(request.headers);
+      requestHeaders.set(
+        'x-auth-payload',
+        JSON.stringify({
+          userId: tokenPayload.userId,
+          email: tokenPayload.email,
+          role: tokenPayload.role,
+        })
+      );
 
       if (pathname.startsWith('/dashboard')) {
         const expectedRole =
@@ -73,7 +89,11 @@ export async function middleware(request: NextRequest) {
         }
       }
 
-      return NextResponse.next();
+      return NextResponse.next({
+        request: {
+          headers: requestHeaders,
+        },
+      });
     } catch (error) {
       if (pathname.startsWith('/api/')) {
         return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
@@ -87,13 +107,7 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api/auth (auth endpoints)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     */
-    '/((?!api/auth|_next/static|_next/image|favicon.ico).*)',
+    '/dashboard/:path*',
+    '/api/:path*',
   ],
 };

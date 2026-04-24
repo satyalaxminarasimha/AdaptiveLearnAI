@@ -4,14 +4,24 @@
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAuth } from '@/context/auth-context';
 
 export default function DashboardRedirect() {
   const router = useRouter();
+  const { user, isLoading } = useAuth();
 
   useEffect(() => {
-    // For the frontend prototype, we'll always redirect to the admin dashboard.
-    router.replace('/dashboard/admin');
-  }, [router]);
+    if (isLoading) {
+      return;
+    }
+
+    if (!user) {
+      router.replace('/');
+      return;
+    }
+
+    router.replace(`/dashboard/${user.role}`);
+  }, [isLoading, user, router]);
 
   return (
       <div className="flex h-screen flex-col items-center justify-center space-y-4 bg-background">

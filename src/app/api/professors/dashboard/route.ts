@@ -110,11 +110,12 @@ export async function GET(request: NextRequest) {
     ]);
 
     const syllabusSubject = syllabus?.subjects?.find(
-      (subject) => subject.name === selectedClass.subject
+      (subject: { name: string }) => subject.name === selectedClass.subject
     );
 
     const totalTopics = syllabusSubject?.totalTopics || 0;
     const topicsCovered = syllabusSubject?.completedTopics || 0;
+    const completedTopics = topicsCovered;
     const topicsPending = Math.max(0, totalTopics - topicsCovered);
     const completionRate = totalTopics > 0 ? Math.round((topicsCovered / totalTopics) * 100) : 0;
 

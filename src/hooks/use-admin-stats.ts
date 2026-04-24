@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { apiRequest } from '@/lib/api';
+import { apiGetJsonCached } from '@/lib/api';
 
 interface RecentActivity {
   id: string;
@@ -29,13 +29,9 @@ export function useAdminStats() {
   const fetchStats = async () => {
     try {
       setIsLoading(true);
-      const response = await apiRequest('/api/admin/stats');
-      if (response.ok) {
-        const data = await response.json();
-        setStats(data);
-      } else {
-        setError('Failed to fetch stats');
-      }
+      const data = await apiGetJsonCached<AdminStats>('/api/admin/stats', {}, 30_000);
+      setStats(data);
+      setError(null);
     } catch (err) {
       setError('Network error');
     } finally {

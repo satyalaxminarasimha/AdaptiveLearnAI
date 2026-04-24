@@ -6,6 +6,9 @@ export interface IQuiz extends Document {
   topics: string[];
   unitName?: string; // e.g., "Unit I", "Unit II"
   unitNumber?: number; // 1, 2, 3, etc.
+  sourceSyllabusId?: mongoose.Types.ObjectId;
+  sourceTextbookId?: string;
+  knowledgeContext?: string;
   questions: IQuestion[];
   createdBy: mongoose.Types.ObjectId; // Professor ID
   dueDate?: Date;
@@ -57,6 +60,9 @@ const QuizSchema: Schema = new Schema({
   topics: [{ type: String }],
   unitName: { type: String },
   unitNumber: { type: Number },
+  sourceSyllabusId: { type: Schema.Types.ObjectId, ref: 'Syllabus' },
+  sourceTextbookId: { type: String },
+  knowledgeContext: { type: String },
   questions: [QuestionSchema],
   createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   dueDate: { type: Date },
@@ -85,5 +91,7 @@ const QuizSchema: Schema = new Schema({
 QuizSchema.index({ subject: 1, unitName: 1 });
 QuizSchema.index({ createdBy: 1, isActive: 1 });
 QuizSchema.index({ batch: 1, section: 1, isActive: 1 });
+QuizSchema.index({ isActive: 1, createdAt: -1 });
+QuizSchema.index({ batch: 1, section: 1, isActive: 1, createdAt: -1 });
 
 export default mongoose.models.Quiz || mongoose.model<IQuiz>('Quiz', QuizSchema);

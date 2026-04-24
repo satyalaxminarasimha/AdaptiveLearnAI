@@ -120,4 +120,9 @@ const UserSchema: Schema = new Schema({
   timestamps: true,
 });
 
+// Indexes for admin filters and dashboard recent-user queries
+UserSchema.index({ role: 1, createdAt: -1 });
+UserSchema.index({ isApproved: 1, createdAt: -1 });
+UserSchema.index({ role: 1, isApproved: 1, createdAt: -1 });
+
 export default mongoose.models.User || mongoose.model<IUser>('User', UserSchema);

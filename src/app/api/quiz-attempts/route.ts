@@ -7,13 +7,15 @@ import User from '@/models/User';
 import StudentRanking from '@/models/StudentRanking';
 import { verifyToken } from '@/lib/auth';
 import { analyzeQuizPerformance } from '@/ai/flows/analyze-quiz-performance';
+import { withApiTiming } from '@/lib/api-timing';
 
 export async function GET(request: NextRequest) {
-  try {
-    const payload = verifyToken(request);
-    if (!payload) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+  return withApiTiming('GET /api/quiz-attempts', async () => {
+    try {
+      const payload = verifyToken(request);
+      if (!payload) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
 
     await dbConnect();
 
@@ -30,34 +32,40 @@ export async function GET(request: NextRequest) {
       query.studentId = payload.userId;
     }
 
-    const attempts = await QuizAttempt.find(query)
-      .populate('quizId', 'title subject passPercentage unitName')
-      .populate('studentId', 'name email rollNo')
-      .sort({ attemptedAt: -1 });
+      const attempts = await QuizAttempt.find(query)
+        .populate('quizId', 'title subject passPercentage unitName')
+        .populate('studentId', 'name email rollNo')
+        .sort({ attemptedAt: -1 })
+        .lean();
 
     // Transform data for frontend
-    const transformedAttempts = attempts.map(attempt => ({
-      _id: attempt._id,
-      studentId: attempt.studentId,
-      quizId: attempt.quizId,
-      score: attempt.score,
-      totalQuestions: attempt.totalQuestions,
-      percentage: attempt.percentage,
-      correctAnswers: Math.round((attempt.score / attempt.totalQuestions) * attempt.totalQuestions),
-      status: attempt.status,
-      rank: attempt.rank,
-      performanceAnalysis: attempt.performanceAnalysis,
-      completedAt: attempt.attemptedAt,
-    }));
+      const transformedAttempts = attempts.map(attempt => ({
+        _id: attempt._id,
+        studentId: attempt.studentId,
+        quizId: attempt.quizId,
+        score: attempt.score,
+        totalQuestions: attempt.totalQuestions,
+        percentage: attempt.percentage,
+        correctAnswers: Math.round((attempt.score / attempt.totalQuestions) * attempt.totalQuestions),
+        status: attempt.status,
+        rank: attempt.rank,
+        performanceAnalysis: attempt.performanceAnalysis,
+        completedAt: attempt.attemptedAt,
+      }));
 
-    return NextResponse.json(transformedAttempts);
-  } catch (error) {
-    console.error('Get quiz attempts error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
-  }
+      return NextResponse.json(transformedAttempts, {
+        headers: {
+          'Cache-Control': 'private, max-age=20, stale-while-revalidate=60',
+        },
+      });
+    } catch (error) {
+      console.error('Get quiz attempts error:', error);
+      return NextResponse.json(
+        { error: 'Internal server error' },
+        { status: 500 }
+      );
+    }
+  });
 }
 
 export async function POST(request: NextRequest) {

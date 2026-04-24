@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import User from '@/models/User';
 import { requireAuth } from '@/lib/auth';
+import { withApiTiming } from '@/lib/api-timing';
 
 // Helper function to format relative time
 function getRelativeTime(date: Date): string {
@@ -25,8 +26,9 @@ function getRelativeTime(date: Date): string {
 }
 
 export async function GET(request: NextRequest) {
-  try {
-    requireAuth(request, ['admin']);
+  return withApiTiming('GET /api/admin/stats', async () => {
+    try {
+      requireAuth(request, ['admin']);
 
     await dbConnect();
 
@@ -53,25 +55,33 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    return NextResponse.json({
-      totalUsers,
-      totalProfessors,
-      totalStudents,
-      admissionRequests,
-      recentActivity,
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Internal server error';
-    if (message === 'Unauthorized') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json(
+        {
+          totalUsers,
+          totalProfessors,
+          totalStudents,
+          admissionRequests,
+          recentActivity,
+        },
+        {
+          headers: {
+            'Cache-Control': 'private, max-age=15, stale-while-revalidate=45',
+          },
+        }
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Internal server error';
+      if (message === 'Unauthorized') {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+      if (message === 'Forbidden') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+      console.error('Get admin stats error:', error);
+      return NextResponse.json(
+        { error: 'Internal server error' },
+        { status: 500 }
+      );
     }
-    if (message === 'Forbidden') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-    console.error('Get admin stats error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
-  }
+  });
 }
